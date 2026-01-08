@@ -36,9 +36,17 @@ import * as util from "./util.ts";
 
 export type UserOrMention =
     | {type: "broadcast"; user: PseudoMentionUser}
-    | {type: "user"; user: User};
+    | {type: "user"; user: User}
+    | {type: "puppet"; puppet: PuppetMention};
 export type UserOrMentionPillData = UserOrMention & {
     is_silent?: boolean;
+};
+
+// Puppet mention for character/roleplay names
+export type PuppetMention = {
+    id: number;
+    name: string;
+    avatar_url: string | null;
 };
 
 export type CombinedPill = StreamPill | UserGroupPill | UserPill;
@@ -100,6 +108,18 @@ export let render_person = (person: UserPillData | UserOrMentionPillData): strin
             secondary: person.user.secondary_text,
             is_person: true,
         });
+    }
+    if (person.type === "puppet") {
+        // Render puppet/character mention
+        const puppet_args: Parameters<typeof render_typeahead_item>[0] = {
+            primary: person.puppet.name,
+            is_person: true,
+            secondary: "Character",
+        };
+        if (person.puppet.avatar_url) {
+            puppet_args.img_src = person.puppet.avatar_url;
+        }
+        return render_typeahead_item(puppet_args);
     }
     const user_circle_class = buddy_data.get_user_circle_class(person.user.user_id);
 
@@ -264,6 +284,17 @@ export function compare_people_for_relevance(
         } else if (person_b.type === "broadcast") {
             return -1;
         }
+    }
+
+    // Handle puppet/character mentions - sort them after real users
+    if (person_a.type === "puppet") {
+        if (person_b.type === "puppet") {
+            // Sort puppets alphabetically by name
+            return person_a.puppet.name.localeCompare(person_b.puppet.name);
+        }
+        return 1; // Puppets after real users
+    } else if (person_b.type === "puppet") {
+        return -1; // Real users before puppets
     }
 
     // Now handle actual people users.
@@ -435,6 +466,22 @@ export function sort_languages(matches: LanguageSuggestion[], query: string): La
     }));
 }
 
+// Helper to get display name for a person (user or puppet)
+function get_person_name(p: UserOrMentionPillData | UserPillData): string {
+    if (p.type === "puppet") {
+        return p.puppet.name;
+    }
+    return p.user.full_name;
+}
+
+// Helper to get email for a person (puppets have no email)
+function get_person_email(p: UserOrMentionPillData | UserPillData): string {
+    if (p.type === "puppet") {
+        return ""; // Puppets have no email
+    }
+    return p.user.email;
+}
+
 const get_user_matches_with_quality = <UserType extends UserOrMentionPillData | UserPillData>(
     users: UserType[],
     query: string,
@@ -444,7 +491,7 @@ const get_user_matches_with_quality = <UserType extends UserOrMentionPillData | 
     ok_users: () => UserType[];
     worst_users: () => UserType[];
 } => {
-    const users_name_results = typeahead.triage_raw(query, users, (p) => p.user.full_name);
+    const users_name_results = typeahead.triage_raw(query, users, (p) => get_person_name(p));
     const users_name_good_matches = [
         ...users_name_results.exact_matches,
         ...users_name_results.begins_with_case_sensitive_matches,
@@ -455,7 +502,7 @@ const get_user_matches_with_quality = <UserType extends UserOrMentionPillData | 
     const email_results = typeahead.triage_raw(
         query,
         users_name_results.no_matches,
-        (p) => p.user.email,
+        (p) => get_person_email(p),
     );
     const email_good_matches = [
         ...email_results.exact_matches,
@@ -495,8 +542,11 @@ export let sort_recipients = <UserType extends UserOrMentionPillData | UserPillD
     }
 
     function is_bot(user: UserType): boolean {
-        // broadcasts are not bots by definition.
-        return user.type !== "broadcast" && user.user.is_bot;
+        // broadcasts and puppets are not bots by definition.
+        if (user.type === "broadcast" || user.type === "puppet") {
+            return false;
+        }
+        return user.user.is_bot;
     }
 
     const [bots, non_bots] = _.partition(users, is_bot);
@@ -1065,6 +1115,11 @@ export function query_matches_person(
         typeahead.query_matches_string_in_order(query, person.user.full_name, " ")
     ) {
         return true;
+    }
+
+    if (person.type === "puppet") {
+        // Match puppet/character names
+        return typeahead.query_matches_string_in_order(query, person.puppet.name, " ");
     }
 
     if (person.type === "user") {

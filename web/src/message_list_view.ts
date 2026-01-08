@@ -159,6 +159,14 @@ function same_sender(a: MessageContainer | undefined, b: MessageContainer | unde
     if (a === undefined || b === undefined) {
         return false;
     }
+    // For puppet messages, compare by puppet_display_name instead of sender_id
+    const a_puppet = a.msg.puppet_display_name;
+    const b_puppet = b.msg.puppet_display_name;
+    if (a_puppet !== undefined || b_puppet !== undefined) {
+        // If either is a puppet message, they must both be puppet messages
+        // with the same puppet_display_name to be considered same sender
+        return a_puppet === b_puppet;
+    }
     return a.msg.sender_id === b.msg.sender_id;
 }
 

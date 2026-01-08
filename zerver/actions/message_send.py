@@ -954,6 +954,18 @@ def do_send_messages(
 
             send_request.message.save(update_fields=update_fields)
 
+    # Register puppet names for @-mention autocomplete
+    for send_request in send_message_requests:
+        if send_request.message.puppet_display_name and send_request.stream:
+            from zerver.actions.stream_puppets import register_stream_puppet
+
+            register_stream_puppet(
+                stream=send_request.stream,
+                puppet_name=send_request.message.puppet_display_name,
+                puppet_avatar_url=send_request.message.puppet_avatar_url,
+                sender=send_request.message.sender,
+            )
+
     ums: list[UserMessageLite] = []
     for send_request in send_message_requests:
         # Service bots (outgoing webhook bots and embedded bots) don't store UserMessage rows;
@@ -1451,6 +1463,8 @@ def check_send_message(
     *,
     skip_stream_access_check: bool = False,
     read_by_sender: bool = False,
+    puppet_display_name: str | None = None,
+    puppet_avatar_url: str | None = None,
 ) -> SentMessageResult:
     addressee = Addressee.legacy_build(sender, recipient_type_name, message_to, topic_name)
     message_request = check_message(
@@ -1466,6 +1480,8 @@ def check_send_message(
         sender_queue_id,
         widget_content,
         skip_stream_access_check=skip_stream_access_check,
+        puppet_display_name=puppet_display_name,
+        puppet_avatar_url=puppet_avatar_url,
     )
     return do_send_messages(
         [message_request],
@@ -1744,6 +1760,8 @@ def check_message(
     archived_channel_notice: bool = False,
     no_previews: bool = False,
     acting_user: UserProfile | None = None,
+    puppet_display_name: str | None = None,
+    puppet_avatar_url: str | None = None,
 ) -> SendMessageRequest:
     """See
     https://zulip.readthedocs.io/en/latest/subsystems/sending-messages.html
@@ -1813,7 +1831,15 @@ def check_message(
         if topics_policy == StreamTopicsPolicyEnum.empty_topic_only.value and topic_name != "":
             raise TopicsNotAllowedError(empty_topic_display_name)
 
+        # Validate puppet mode is enabled for this stream
+        if puppet_display_name is not None:
+            if not stream.enable_puppet_mode:
+                raise JsonableError(_("Puppet mode is not enabled for this channel"))
+
     elif addressee.is_private():
+        # Puppet messages are only allowed in streams
+        if puppet_display_name is not None:
+            raise JsonableError(_("Puppet messages are only allowed in channels"))
         user_profiles = addressee.user_profiles()
         mirror_message = client.name in [
             "irc_mirror",
@@ -1863,6 +1889,10 @@ def check_message(
     else:
         message.date_sent = timezone_now()
     message.sending_client = client
+
+    # Set puppet identity if provided (already validated above)
+    message.puppet_display_name = puppet_display_name
+    message.puppet_avatar_url = puppet_avatar_url
 
     # We render messages later in the process.
     assert message.rendered_content is None

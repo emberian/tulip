@@ -336,6 +336,26 @@
         }
     }
 
+    /* Puppet/character mentions */
+    .puppet-mention {
+        padding: 0 3px;
+        border-radius: 3px;
+        white-space: nowrap;
+        font-size: 0.95em;
+        /* Use a distinct purple/violet color for puppet mentions */
+        color: hsl(270deg 60% 40%);
+        background-color: hsl(270deg 40% 92%);
+        font-style: italic;
+
+        &:hover {
+            background-color: hsl(270deg 40% 85%);
+        }
+
+        &.silent {
+            color: hsl(270deg 40% 50%);
+        }
+    }
+
     .alert-word {
         background-color: var(--color-background-alert-word);
     }

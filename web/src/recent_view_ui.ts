@@ -553,8 +553,19 @@ export function get_pm_tooltip_data(user_ids_string: string): buddy_data.TitleDa
     };
 }
 
+// Participant can be a user or a puppet
+type ParticipantInfo =
+    | (people.SenderInfo & {is_puppet?: false})
+    | {
+          is_puppet: true;
+          full_name: string;
+          avatar_url_small: string | undefined;
+          is_muted: false;
+          max_id: number;
+      };
+
 type AvatarsContext = {
-    senders: people.SenderInfo[];
+    senders: ParticipantInfo[];
     other_sender_names_html: string;
     other_senders_count: number;
 };
@@ -601,12 +612,115 @@ function get_avatars_context(all_senders: number[]): AvatarsContext {
     };
 }
 
+// Build combined participant list from users and puppets for stream conversations
+function get_stream_participants_context(
+    stream_id: number,
+    topic: string,
+): AvatarsContext {
+    // Get user senders with their max message IDs for sorting
+    const user_sender_ids = recent_senders.get_topic_recent_senders(stream_id, topic);
+    const puppets = recent_senders.get_topic_recent_puppets(stream_id, topic);
+
+    // If no puppets, use the simple path
+    if (puppets.length === 0) {
+        return get_avatars_context(user_sender_ids.toReversed());
+    }
+
+    // Convert user senders to participant info with max_id for sorting
+    type UserWithMaxId = {user_id: number; max_id: number};
+    const users_with_max_id: UserWithMaxId[] = user_sender_ids.map((user_id) => {
+        const msg_ids = recent_senders.get_topic_message_ids_for_sender(stream_id, topic, user_id);
+        const max_id = msg_ids.size > 0 ? Math.max(...msg_ids) : -1;
+        return {user_id, max_id};
+    });
+
+    // Combine users and puppets into a single list with consistent structure
+    type CombinedParticipant =
+        | {type: "user"; user_id: number; max_id: number}
+        | {type: "puppet"; puppet: recent_senders.TopicPuppetInfo};
+
+    const combined: CombinedParticipant[] = [
+        ...users_with_max_id.map((u) => ({type: "user" as const, user_id: u.user_id, max_id: u.max_id})),
+        ...puppets.map((p) => ({type: "puppet" as const, puppet: p})),
+    ];
+
+    // Sort by max_id descending (most recent first)
+    combined.sort((a, b) => {
+        const a_max = a.type === "user" ? a.max_id : a.puppet.max_id;
+        const b_max = b.type === "user" ? b.max_id : b.puppet.max_id;
+        return b_max - a_max;
+    });
+
+    // Reverse for display (CSS shows in reverse order)
+    const reversed = combined.toReversed();
+
+    const max_space_for_avatars = max_avatars + 1;
+    if (reversed.length <= max_space_for_avatars) {
+        return {
+            senders: reversed.map((p) => participant_to_sender_info(p)),
+            other_sender_names_html: "",
+            other_senders_count: 0,
+        };
+    }
+
+    const displayed = reversed.slice(-max_avatars);
+    const extra = reversed.slice(0, -max_avatars);
+    const displayed_extra = extra.slice(-MAX_EXTRA_SENDERS);
+    const other_count = Math.max(0, reversed.length - max_avatars);
+
+    const displayed_other_names = displayed_extra.toReversed().map((p) => {
+        if (p.type === "user") {
+            return people.get_by_user_id(p.user_id).full_name;
+        }
+        return p.puppet.name;
+    });
+
+    if (extra.length > MAX_EXTRA_SENDERS) {
+        const remaining = extra.length - MAX_EXTRA_SENDERS;
+        displayed_other_names.push(
+            $t(
+                {
+                    defaultMessage:
+                        "and {remaining_senders, plural, one {1 other} other {# others}}.",
+                },
+                {remaining_senders: remaining},
+            ),
+        );
+    }
+
+    return {
+        senders: displayed.map((p) => participant_to_sender_info(p)),
+        other_sender_names_html: displayed_other_names.map((name) => _.escape(name)).join("<br />"),
+        other_senders_count: other_count,
+    };
+}
+
+function participant_to_sender_info(
+    p: {type: "user"; user_id: number; max_id: number} | {type: "puppet"; puppet: recent_senders.TopicPuppetInfo},
+): ParticipantInfo {
+    if (p.type === "user") {
+        const person = people.get_by_user_id(p.user_id);
+        return {
+            ...person,
+            avatar_url_small: people.small_avatar_url_for_person(person),
+            is_muted: muted_users.is_user_muted(p.user_id),
+        };
+    }
+    return {
+        is_puppet: true,
+        full_name: p.puppet.name,
+        avatar_url_small: p.puppet.avatar_url,
+        is_muted: false,
+        max_id: p.puppet.max_id,
+    };
+}
+
 type ConversationContext = {
     full_last_msg_date_time: string;
     conversation_key: string;
     unread_count: number;
     last_msg_time: string;
-    senders: people.SenderInfo[];
+    senders: ParticipantInfo[];
     other_senders_count: number;
     other_sender_names_html: string;
     last_msg_url: string;
@@ -688,10 +802,8 @@ function format_conversation(conversation_data: ConversationData): ConversationC
         // easiest way we've figured out for passing the data to the template rendering.
         const all_visibility_policies = user_topics.all_visibility_policies;
 
-        // Since the css for displaying senders in reverse order is much simpler,
-        // we provide our handlebars with senders in opposite order.
-        // Display in most recent sender first order.
-        all_senders = recent_senders.get_topic_recent_senders(stream_id, topic).toReversed();
+        // Note: For streams, we use get_stream_participants_context() later
+        // which combines both users and puppets.
 
         stream_context = {
             stream_id,
@@ -779,19 +891,22 @@ function format_conversation(conversation_data: ConversationData): ConversationC
         last_msg_url: hash_util.by_conversation_and_time_url(last_msg),
         is_spectator: page_params.is_spectator,
         column_indexes: COLUMNS,
-        ...get_avatars_context(all_senders),
     };
     if (is_private) {
         assert(dm_context !== undefined);
+        assert(all_senders !== undefined);
         return {
             ...shared_context,
+            ...get_avatars_context(all_senders),
             is_private: true,
             ...dm_context,
         };
     }
     assert(stream_context !== undefined);
+    // For streams, use combined participants context (includes puppets)
     return {
         ...shared_context,
+        ...get_stream_participants_context(stream_context.stream_id, stream_context.topic),
         is_private: false,
         ...stream_context,
     };

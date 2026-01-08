@@ -1,9 +1,11 @@
+import * as compose_state from "./compose_state.ts";
 import * as emoji from "./emoji.ts";
 import * as hash_util from "./hash_util.ts";
 import * as linkifiers from "./linkifiers.ts";
 import type {AbstractMap, MarkdownHelpers} from "./markdown.ts";
 import * as people from "./people.ts";
 import * as stream_data from "./stream_data.ts";
+import * as stream_puppets from "./stream_puppets.ts";
 import type {Stream} from "./sub_store.ts";
 import * as user_groups from "./user_groups.ts";
 import {user_settings} from "./user_settings.ts";
@@ -90,4 +92,18 @@ export const get_helpers = (): MarkdownHelpers => ({
 
     // linkifiers
     get_linkifier_map: () => abstract_map(linkifiers.get_linkifier_map()),
+
+    // puppets - for puppet mention support in compose preview
+    is_puppet_mention: (name: string, stream_id: number | undefined): boolean => {
+        if (stream_id === undefined) {
+            return false;
+        }
+        const sub = stream_data.get_sub_by_id(stream_id);
+        if (!sub || !(sub as {enable_puppet_mode?: boolean}).enable_puppet_mode) {
+            return false;
+        }
+        const puppets = stream_puppets.get_puppets_for_stream(stream_id);
+        return puppets.some((p) => p.name.toLowerCase() === name.toLowerCase());
+    },
+    current_stream_id: () => compose_state.stream_id(),
 });

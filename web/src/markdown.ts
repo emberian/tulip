@@ -80,6 +80,10 @@ export type MarkdownHelpers = {
 
     // linkifiers
     get_linkifier_map: GetLinkifierMap;
+
+    // puppets - optional, for puppet mention support
+    is_puppet_mention?: (name: string, stream_id: number | undefined) => boolean;
+    current_stream_id?: () => number | undefined;
 };
 
 export function translate_emoticons_to_names({
@@ -280,6 +284,16 @@ function parse_with_options(
             }
 
             if (user_id === undefined) {
+                // Check if this is a puppet mention
+                const stream_id = helper_config.current_stream_id?.();
+                if (
+                    full_name !== undefined &&
+                    helper_config.is_puppet_mention?.(full_name, stream_id)
+                ) {
+                    const display_text = silently ? full_name : "@" + full_name;
+                    const classes = "puppet-mention" + (silently ? " silent" : "");
+                    return `<span class="${classes}" data-puppet-name="${_.escape(full_name)}">${_.escape(display_text)}</span>`;
+                }
                 // This is nothing to be concerned about--the users
                 // are allowed to hand-type mentions and they may
                 // have had a typo in the name.

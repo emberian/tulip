@@ -87,6 +87,9 @@ export const raw_message_schema = z.intersection(
             submessages: z.array(submessage_schema),
             timestamp: z.number(),
             flags: z.array(z.string()),
+            // Puppet identity for character/roleplay messages
+            puppet_display_name: z.optional(z.string()),
+            puppet_avatar_url: z.optional(z.string()),
         }),
         z.discriminatedUnion("type", [
             z.object({

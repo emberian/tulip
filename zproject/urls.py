@@ -203,6 +203,7 @@ from zerver.views.streams import (
     delete_in_topic,
     get_stream_backend,
     get_stream_email_address,
+    get_stream_puppets,
     get_streams_backend,
     get_subscribers_backend,
     get_topics_backend,
@@ -569,6 +570,7 @@ v1_api_and_json_patterns = [
         DELETE=deactivate_stream_backend,
     ),
     rest_path("streams/<int:stream_id>/email_address", GET=get_stream_email_address),
+    rest_path("streams/<int:stream_id>/puppets", GET=get_stream_puppets),
     # Delete topic in stream
     rest_path("streams/<int:stream_id>/delete_topic", POST=delete_in_topic),
     rest_path("default_streams", POST=add_default_stream, DELETE=remove_default_stream),

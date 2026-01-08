@@ -303,6 +303,7 @@ def update_stream_backend(
     can_send_message_group: Json[GroupSettingChangeRequest] | None = None,
     can_subscribe_group: Json[GroupSettingChangeRequest] | None = None,
     description: ChannelDescription = None,
+    enable_puppet_mode: Json[bool] | None = None,
     folder_id: Json[int | None] | MissingType = Missing,
     history_public_to_subscribers: Json[bool] | None = None,
     is_archived: Json[bool] | None = None,
@@ -398,6 +399,9 @@ def update_stream_backend(
     validated_topics_policy = validate_topics_policy(topics_policy, user_profile, stream)
     if validated_topics_policy is not None:
         do_set_stream_property(stream, "topics_policy", validated_topics_policy.value, user_profile)
+
+    if enable_puppet_mode is not None:
+        do_set_stream_property(stream, "enable_puppet_mode", enable_puppet_mode, user_profile)
 
     system_groups_name_dict = get_role_based_system_groups_dict(user_profile.realm)
     if not proposed_history_public_to_subscribers and can_create_topic_group is None:
@@ -1416,3 +1420,22 @@ def get_stream_email_address(
     stream_email = encode_email_address(stream.name, email_token, show_sender=True)
 
     return json_success(request, data={"email": stream_email})
+
+
+@typed_endpoint
+def get_stream_puppets(
+    request: HttpRequest,
+    user_profile: UserProfile,
+    *,
+    stream_id: Annotated[NonNegativeInt, ApiParamConfig("stream", path_only=True)],
+) -> HttpResponse:
+    """Get all puppet names registered in a stream for @-mention autocomplete."""
+    from zerver.actions.stream_puppets import get_stream_puppets
+
+    (stream, _sub) = access_stream_by_id(user_profile, stream_id)
+
+    if not stream.enable_puppet_mode:
+        raise JsonableError(_("Puppet mode is not enabled for this channel"))
+
+    puppets = get_stream_puppets(stream)
+    return json_success(request, data={"puppets": puppets})

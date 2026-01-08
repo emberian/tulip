@@ -115,6 +115,11 @@ class AbstractMessage(models.Model):
     # If the message is a channel message (as opposed to a DM or group-DM)
     is_channel_message = models.BooleanField(default=True, db_index=True)
 
+    # Puppet identity - overrides sender display in puppet-enabled streams.
+    # When set, messages display with this name/avatar instead of the sender's.
+    puppet_display_name = models.CharField(max_length=100, null=True, default=None)
+    puppet_avatar_url = models.URLField(max_length=500, null=True, default=None)
+
     class Meta:
         abstract = True
 

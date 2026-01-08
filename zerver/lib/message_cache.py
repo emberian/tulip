@@ -239,6 +239,13 @@ class MessageDict:
             ).addr_spec
 
         MessageDict.set_sender_avatar(obj, client_gravatar, can_access_sender)
+
+        # For puppet messages, override sender display info with puppet identity
+        if obj.get("puppet_display_name"):
+            obj["sender_full_name"] = obj["puppet_display_name"]
+            if obj.get("puppet_avatar_url"):
+                obj["avatar_url"] = obj["puppet_avatar_url"]
+
         if apply_markdown:
             obj["content_type"] = "text/html"
             obj["content"] = obj["rendered_content"]
@@ -330,6 +337,8 @@ class MessageDict:
                 "sender_id": message.sender.id,
                 "sending_client__name": message.sending_client.name,
                 "sender__realm_id": message.sender.realm_id,
+                "puppet_display_name": message.puppet_display_name,
+                "puppet_avatar_url": message.puppet_avatar_url,
             }
             for message in messages
         ]
@@ -356,6 +365,8 @@ class MessageDict:
             "sender_id",
             "sending_client__name",
             "sender__realm_id",
+            "puppet_display_name",
+            "puppet_avatar_url",
         ]
         # Uses index: zerver_message_pkey
         messages = Message.objects.filter(id__in=needed_ids).values(*fields)
@@ -392,6 +403,8 @@ class MessageDict:
             recipient_type_id=row["recipient__type_id"],
             reactions=row["reactions"],
             submessages=row["submessages"],
+            puppet_display_name=row.get("puppet_display_name"),
+            puppet_avatar_url=row.get("puppet_avatar_url"),
         )
 
     @staticmethod
@@ -413,6 +426,8 @@ class MessageDict:
         recipient_type_id: int,
         reactions: list[RawReactionRow],
         submessages: list[dict[str, Any]],
+        puppet_display_name: str | None = None,
+        puppet_avatar_url: str | None = None,
     ) -> dict[str, Any]:
         obj = dict(
             id=message_id,
@@ -475,6 +490,12 @@ class MessageDict:
             ReactionDict.build_dict_from_raw_db_row(reaction) for reaction in reactions
         ]
         obj["submessages"] = submessages
+
+        # Puppet identity for character/roleplay messages
+        if puppet_display_name is not None:
+            obj["puppet_display_name"] = puppet_display_name
+            obj["puppet_avatar_url"] = puppet_avatar_url
+
         return obj
 
     @staticmethod

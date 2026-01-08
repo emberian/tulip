@@ -325,6 +325,9 @@ export async function warn_if_mentioning_unsubscribed_user(
     if (mentioned.type === "broadcast") {
         return; // don't check if @all/@everyone/@stream
     }
+    if (mentioned.type === "puppet") {
+        return; // puppets are not real users
+    }
     const user_id = mentioned.user.user_id;
 
     const stream_id = get_stream_id_for_textarea($textarea);

@@ -125,6 +125,8 @@ def send_message_backend(
     widget_content: Annotated[
         str | None, ApiParamConfig("widget_content", documentation_status=DOCUMENTATION_PENDING)
     ] = None,
+    puppet_display_name: str | None = None,
+    puppet_avatar_url: str | None = None,
 ) -> HttpResponse:
     recipient_type_name = req_type
     if recipient_type_name == "direct":
@@ -234,6 +236,8 @@ def send_message_backend(
         sender_queue_id=queue_id,
         widget_content=widget_content,
         read_by_sender=read_by_sender,
+        puppet_display_name=puppet_display_name,
+        puppet_avatar_url=puppet_avatar_url,
     )
     data["id"] = sent_message_result.message_id
     if sent_message_result.automatic_new_visibility_policy:

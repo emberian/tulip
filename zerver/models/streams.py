@@ -85,6 +85,9 @@ class Stream(models.Model):
     # Whether this stream's content should be published by the web-public archive features
     is_web_public = models.BooleanField(default=False)
 
+    # Whether users can send messages with custom character identities (puppets)
+    enable_puppet_mode = models.BooleanField(default=False)
+
     # These values are used to map the can_send_message_group setting value
     # to the corresponding stream_post_policy value for legacy API clients
     # in get_stream_post_policy_value_based_on_group_setting defined in
@@ -268,6 +271,7 @@ class Stream(models.Model):
         "date_created",
         "deactivated",
         "description",
+        "enable_puppet_mode",
         "first_message_id",
         "folder_id",
         "history_public_to_subscribers",
@@ -492,6 +496,31 @@ class DefaultStreamGroup(models.Model):
 
 def get_default_stream_groups(realm: Realm) -> QuerySet[DefaultStreamGroup]:
     return DefaultStreamGroup.objects.filter(realm=realm)
+
+
+class StreamPuppet(models.Model):
+    """Tracks puppet/character names used in puppet-enabled streams.
+
+    When a user sends a puppet message, the puppet name is registered here,
+    making it available for @-mentions and appearing in conversation participants.
+    """
+
+    MAX_NAME_LENGTH = 100
+
+    stream = models.ForeignKey(Stream, on_delete=CASCADE, related_name="puppets")
+    name = models.CharField(max_length=MAX_NAME_LENGTH, db_index=True)
+    # Avatar URL for the puppet (optional, copied from most recent message)
+    avatar_url = models.URLField(max_length=500, null=True, blank=True)
+    # Last time this puppet was used
+    last_used = models.DateTimeField(default=timezone_now)
+    # User who first created/used this puppet
+    created_by = models.ForeignKey(UserProfile, on_delete=CASCADE, related_name="+")
+
+    class Meta:
+        unique_together = ("stream", "name")
+
+    def __str__(self) -> str:
+        return f"{self.name} in {self.stream.name}"
 
 
 class ChannelEmailAddress(models.Model):

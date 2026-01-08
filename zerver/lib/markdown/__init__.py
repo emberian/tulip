@@ -65,7 +65,7 @@ from zerver.lib.timezone import common_timezones
 from zerver.lib.types import LinkifierDict
 from zerver.lib.url_encoding import encode_channel, encode_hash_component
 from zerver.lib.url_preview.types import UrlEmbedData, UrlOEmbedData
-from zerver.models import Message, Realm, UserProfile
+from zerver.models import Message, Realm, Recipient, UserProfile
 from zerver.models.linkifiers import linkifiers_for_realm
 from zerver.models.realm_emoji import EmojiInfo, get_name_keyed_dict_for_active_realm_emoji
 
@@ -132,6 +132,9 @@ class DbData:
     topic_info: dict[ChannelTopicInfo, int | None]
     translate_emoticons: bool
     user_upload_previews: AttachmentData
+    # For puppet mention support - the stream we're sending to (if any)
+    sending_stream_id: int | None = None
+    puppet_names: set[str] | None = None
 
 
 # Format version of the Markdown rendering; stored along with rendered
@@ -1766,6 +1769,16 @@ class UserMentionPattern(CompiledInlineProcessor):
                 name = user.full_name
                 user_id = str(user.id)
             else:
+                # Check if this is a puppet mention (character name)
+                puppet_names = db_data.puppet_names
+                if puppet_names is not None and name.lower() in {p.lower() for p in puppet_names}:
+                    # This is a puppet mention - render with puppet-mention class
+                    el = Element("span")
+                    el.set("class", "puppet-mention" + (" silent" if silent else ""))
+                    el.set("data-puppet-name", name)
+                    text = f"@{name}" if not silent else name
+                    el.text = markdown.util.AtomicString(text)
+                    return el, m.start(), m.end()
                 # Don't highlight @mentions that don't refer to a valid user
                 return None, None, None
 
@@ -2696,6 +2709,25 @@ def do_convert(
             active_realm_emoji = {}
 
         user_upload_previews = manifest_and_get_user_upload_previews(message_realm.id, content)
+
+        # Get puppet names for the stream if this is a stream message with puppet mode enabled
+        sending_stream_id: int | None = None
+        puppet_names: set[str] | None = None
+        if message is not None and message.recipient.type == Recipient.STREAM:
+            sending_stream_id = message.recipient.type_id
+            from zerver.models.streams import Stream, StreamPuppet
+
+            try:
+                stream = Stream.objects.get(id=sending_stream_id)
+                if stream.enable_puppet_mode:
+                    puppet_names = set(
+                        StreamPuppet.objects.filter(stream_id=sending_stream_id).values_list(
+                            "name", flat=True
+                        )
+                    )
+            except Stream.DoesNotExist:
+                pass
+
         md_engine.zulip_db_data = DbData(
             realm_alert_words_automaton=realm_alert_words_automaton,
             mention_data=mention_data,
@@ -2706,6 +2738,8 @@ def do_convert(
             topic_info=topic_info,
             translate_emoticons=translate_emoticons,
             user_upload_previews=user_upload_previews,
+            sending_stream_id=sending_stream_id,
+            puppet_names=puppet_names,
         )
 
     try:

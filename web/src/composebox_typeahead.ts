@@ -35,6 +35,7 @@ import * as timerender from "./timerender.ts";
 import * as tippyjs from "./tippyjs.ts";
 import * as topic_link_util from "./topic_link_util.ts";
 import type {Emoji, EmojiSuggestion} from "./typeahead.ts";
+import * as stream_puppets from "./stream_puppets.ts";
 import * as typeahead from "./typeahead.ts";
 import * as typeahead_helper from "./typeahead_helper.ts";
 import type {UserOrMentionPillData} from "./typeahead_helper.ts";
@@ -655,7 +656,7 @@ export function filter_and_sort_mentions(
         topic: string | undefined;
     },
 ): (UserGroupPillData | UserOrMentionPillData)[] {
-    return get_person_suggestions(query, {
+    const suggestions = get_person_suggestions(query, {
         want_broadcast: !is_silent,
         filter_pills: false,
         filter_groups_for_mention: !is_silent,
@@ -664,6 +665,35 @@ export function filter_and_sort_mentions(
         ...item,
         is_silent,
     }));
+
+    // Add puppet suggestions if we're in a puppet-enabled stream
+    if (opts.stream_id !== undefined) {
+        const sub = stream_data.get_sub_by_id(opts.stream_id);
+        if (sub && (sub as {enable_puppet_mode?: boolean}).enable_puppet_mode) {
+            // Trigger fetch if not already fetched (async, for future calls)
+            void stream_puppets.fetch_puppets_for_stream(opts.stream_id);
+
+            // Get cached puppets synchronously
+            const puppets = stream_puppets.get_puppets_for_stream(opts.stream_id);
+            const query_lower = typeahead.clean_query_lowercase(query);
+
+            for (const puppet of puppets) {
+                if (typeahead.query_matches_string_in_order(query_lower, puppet.name.toLowerCase(), " ")) {
+                    suggestions.push({
+                        type: "puppet",
+                        puppet: {
+                            id: puppet.id,
+                            name: puppet.name,
+                            avatar_url: puppet.avatar_url,
+                        },
+                        is_silent,
+                    });
+                }
+            }
+        }
+    }
+
+    return suggestions;
 }
 
 export function get_pm_people(query: string): (UserGroupPillData | UserPillData)[] {
@@ -682,6 +712,10 @@ export function get_pm_people(query: string): (UserGroupPillData | UserPillData)
     // to do this.
     const user_suggestions: (UserGroupPillData | UserPillData)[] = [];
     for (const suggestion of suggestions) {
+        // Skip puppets - they can't receive DMs
+        if (suggestion.type === "puppet") {
+            continue;
+        }
         if (
             suggestion.type === "user" &&
             suggestion.user.user_id === my_user_id &&
@@ -1303,6 +1337,7 @@ export function content_item_html(item: TypeaheadSuggestion): string | undefined
         case "user_group":
         case "user":
         case "broadcast":
+        case "puppet":
             return typeahead_helper.render_person_or_user_group(item);
         case "slash":
             return typeahead_helper.render_typeahead_item({
@@ -1421,6 +1456,22 @@ export function content_typeahead_selected(
                 }
                 beginning += mention_text + " ";
             }
+            break;
+        }
+        case "puppet": {
+            // Puppet/character mention - use @**Name** syntax like regular users
+            const is_silent = item.is_silent;
+            beginning = beginning.slice(0, -token.length - 1);
+            if (beginning.endsWith("@_*")) {
+                beginning = beginning.slice(0, -3);
+            } else if (beginning.endsWith("@*") || beginning.endsWith("@_")) {
+                beginning = beginning.slice(0, -2);
+            } else if (beginning.endsWith("@")) {
+                beginning = beginning.slice(0, -1);
+            }
+            // Use @**Name** syntax for puppet mentions (no user_id)
+            const puppet_mention = is_silent ? `@_**${item.puppet.name}** ` : `@**${item.puppet.name}** `;
+            beginning += puppet_mention;
             break;
         }
         case "slash":

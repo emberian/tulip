@@ -49,9 +49,18 @@ const topic_senders = new Map<number, FoldDict<Map<number, IdTracker>>>();
 // pm_senders[user_ids_string][user_id] = IdTracker
 const pm_senders = new Map<string, Map<number, IdTracker>>();
 
+// Puppet tracking: topic_puppets[stream_id][topic][puppet_name] = {avatar_url, max_id}
+export type TopicPuppetInfo = {
+    name: string;
+    avatar_url: string | undefined;
+    max_id: number;
+};
+const topic_puppets = new Map<number, FoldDict<Map<string, TopicPuppetInfo>>>();
+
 export function clear_for_testing(): void {
     stream_senders.clear();
     topic_senders.clear();
+    topic_puppets.clear();
 }
 
 function max_id_for_stream_topic_sender(opts: {
@@ -111,19 +120,55 @@ function add_topic_message(opts: {
     id_tracker.add(message_id);
 }
 
+function add_topic_puppet(opts: {
+    stream_id: number;
+    topic: string;
+    puppet_name: string;
+    puppet_avatar_url: string | undefined;
+    message_id: number;
+}): void {
+    const {stream_id, topic, puppet_name, puppet_avatar_url, message_id} = opts;
+    const topic_dict = topic_puppets.get(stream_id) ?? new FoldDict();
+    const puppet_dict = topic_dict.get(topic) ?? new Map<string, TopicPuppetInfo>();
+    topic_puppets.set(stream_id, topic_dict);
+    topic_dict.set(topic, puppet_dict);
+
+    const existing = puppet_dict.get(puppet_name);
+    if (!existing || message_id > existing.max_id) {
+        puppet_dict.set(puppet_name, {
+            name: puppet_name,
+            avatar_url: puppet_avatar_url,
+            max_id: message_id,
+        });
+    }
+}
+
 export function process_stream_message(message: {
     stream_id: number;
     topic: string;
     sender_id: number;
     id: number;
+    puppet_display_name?: string;
+    puppet_avatar_url?: string;
 }): void {
     const stream_id = message.stream_id;
     const topic = message.topic;
     const sender_id = message.sender_id;
     const message_id = message.id;
 
-    add_stream_message({stream_id, sender_id, message_id});
-    add_topic_message({stream_id, topic, sender_id, message_id});
+    // For puppet messages, track the puppet instead of the sender
+    if (message.puppet_display_name) {
+        add_topic_puppet({
+            stream_id,
+            topic,
+            puppet_name: message.puppet_display_name,
+            puppet_avatar_url: message.puppet_avatar_url,
+            message_id,
+        });
+    } else {
+        add_stream_message({stream_id, sender_id, message_id});
+        add_topic_message({stream_id, topic, sender_id, message_id});
+    }
 }
 
 function remove_topic_message(opts: {
@@ -248,6 +293,22 @@ export function get_topic_recent_senders(stream_id: number, topic: string): numb
         recent_senders.push(item[0]);
     }
     return recent_senders;
+}
+
+export function get_topic_recent_puppets(stream_id: number, topic: string): TopicPuppetInfo[] {
+    const topic_dict = topic_puppets.get(stream_id);
+    if (topic_dict === undefined) {
+        return [];
+    }
+
+    const puppet_dict = topic_dict.get(topic);
+    if (puppet_dict === undefined) {
+        return [];
+    }
+
+    const sorted_puppets = [...puppet_dict.values()];
+    sorted_puppets.sort((a, b) => b.max_id - a.max_id);
+    return sorted_puppets;
 }
 
 export function process_private_message(opts: {
