@@ -61,7 +61,7 @@ export type MarkdownHelpers = {
     is_valid_user_id: (user_id: number) => boolean;
 
     // user groups
-    get_user_group_from_name: (name: string) => {id: number; name: string} | undefined;
+    get_user_group_from_name: (name: string) => {id: number; name: string; color: string} | undefined;
     is_member_of_user_group: (user_group_id: number, user_id: number) => boolean;
 
     // stream hashes

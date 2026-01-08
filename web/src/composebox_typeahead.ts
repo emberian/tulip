@@ -127,8 +127,9 @@ function parse_command_options(
     const completed_options: Record<string, string> = {};
     for (let i = 0; i < option_index; i++) {
         const opt = command.options[i];
-        if (opt && parts[i]) {
-            completed_options[opt.name] = parts[i];
+        const part = parts[i];
+        if (opt && part) {
+            completed_options[opt.name] = part;
         }
     }
 

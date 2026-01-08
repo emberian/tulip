@@ -44,6 +44,7 @@ export function add(user_group_raw: UserGroupRaw): UserGroup {
         description: user_group_raw.description,
         id: user_group_raw.id,
         name: user_group_raw.name,
+        color: user_group_raw.color,
         creator_id: user_group_raw.creator_id,
         date_created: user_group_raw.date_created,
         members: new Set(user_group_raw.members),

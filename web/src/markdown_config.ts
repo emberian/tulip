@@ -53,7 +53,7 @@ function stream(obj: Stream | undefined): {stream_id: number; name: string} | un
 
 function user_group(
     obj: user_groups.UserGroup | undefined,
-): {id: number; name: string} | undefined {
+): {id: number; name: string; color: string} | undefined {
     if (obj === undefined) {
         return undefined;
     }
@@ -61,6 +61,7 @@ function user_group(
     return {
         id: obj.id,
         name: obj.name,
+        color: obj.color,
     };
 }
 
