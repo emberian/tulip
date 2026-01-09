@@ -7,7 +7,7 @@ import render_topic_typeahead_hint from "../templates/topic_typeahead_hint.hbs";
 import {MAX_ITEMS, Typeahead} from "./bootstrap_typeahead.ts";
 import type {TypeaheadInputElement} from "./bootstrap_typeahead.ts";
 import * as bot_command_store from "./bot_command_store.ts";
-import * as bot_presence from "./bot_presence.ts";
+import * as command_compose from "./command_compose.ts";
 import * as bulleted_numbered_list_util from "./bulleted_numbered_list_util.ts";
 import * as compose_pm_pill from "./compose_pm_pill.ts";
 import * as compose_state from "./compose_state.ts";
@@ -23,6 +23,7 @@ import * as muted_users from "./muted_users.ts";
 import {page_params} from "./page_params.ts";
 import * as people from "./people.ts";
 import type {PseudoMentionUser, User} from "./people.ts";
+import * as presence from "./presence.ts";
 import * as realm_playground from "./realm_playground.ts";
 import * as rows from "./rows.ts";
 import * as settings_data from "./settings_data.ts";
@@ -79,67 +80,10 @@ type SlashCommand = {
     info: string;
     aliases: string;
     placeholder?: string;
+    // For bot commands that should enter command mode
+    bot_command?: bot_command_store.BotCommand | undefined;
 };
-export type SlashCommandSuggestion = SlashCommand & {type: "slash" | "slash_option"};
-
-// Helper type for parsing command options
-type CommandOptionContext = {
-    current_option: {
-        name: string;
-        type: string;
-        description?: string;
-        required?: boolean;
-        choices?: Array<{name: string; value: string}>;
-    };
-    partial_value: string;
-    completed_options: Record<string, string>;
-};
-
-/**
- * Parse command arguments to determine which option we're currently typing.
- *
- * For example, with a command like `/look at sword armor`,
- * if the command has options [target, secondary], this determines
- * that we're typing the "secondary" option with value "armor".
- */
-function parse_command_options(
-    command: bot_command_store.BotCommand,
-    args_text: string,
-): CommandOptionContext | null {
-    // Simple positional argument parsing
-    // Split by spaces, last non-empty segment is what we're typing
-    const parts = args_text.split(/\s+/);
-    const option_index = parts.length - 1;
-
-    // If we're past the number of options, no autocomplete
-    if (option_index >= command.options.length) {
-        return null;
-    }
-
-    const current_option = command.options[option_index];
-    if (!current_option) {
-        return null;
-    }
-
-    // The partial value is the last part (what user is currently typing)
-    const partial_value = parts[option_index] ?? "";
-
-    // Track completed options
-    const completed_options: Record<string, string> = {};
-    for (let i = 0; i < option_index; i++) {
-        const opt = command.options[i];
-        const part = parts[i];
-        if (opt && part) {
-            completed_options[opt.name] = part;
-        }
-    }
-
-    return {
-        current_option,
-        partial_value,
-        completed_options,
-    };
-}
+export type SlashCommandSuggestion = SlashCommand & {type: "slash"};
 
 export type LanguageSuggestion = {
     language: string;
@@ -1074,12 +1018,14 @@ export function get_candidates(
         // Convert bot commands to SlashCommand format, filtering out offline bots
         const bot_commands: SlashCommand[] = bot_command_store
             .get_commands()
-            .filter((cmd) => bot_presence.is_bot_connected(cmd.bot_id))
+            .filter((cmd) => presence.is_bot_connected(cmd.bot_id))
             .map((cmd) => ({
                 text: `/${cmd.name}`,
                 name: cmd.name,
                 info: `${cmd.description} (${cmd.bot_name})`,
                 aliases: "",
+                // Include the full command for entering command mode
+                bot_command: cmd.options.length > 0 ? cmd : undefined,
             }));
 
         return [...built_in_commands, ...bot_commands];
@@ -1088,7 +1034,12 @@ export function get_candidates(
     if (ALLOWED_MARKDOWN_FEATURES.slash && current_token.startsWith("/")) {
         current_token = current_token.slice(1);
 
-        // Check if we're typing command name or option values
+        // Only show command name suggestions, not option values.
+        // Bot commands with options use the command composer mode (entered via Tab/Enter
+        // on a command suggestion), which has its own UI for option selection.
+        // We don't provide option autocomplete in the regular textarea because:
+        // 1. Plain text messages starting with / are NOT parsed as commands
+        // 2. The command composer provides a better UX for entering options
         const space_index = current_token.indexOf(" ");
         if (space_index === -1) {
             // Still typing command name - show command suggestions
@@ -1103,65 +1054,8 @@ export function get_candidates(
             return typeahead_helper.sort_slash_commands(matches_list, token);
         }
 
-        // We have a space - check if this is a bot command with options
-        const command_name = current_token.slice(0, space_index);
-        const bot_command = bot_command_store.get_command_by_name(command_name);
-
-        if (bot_command && bot_command.options.length > 0) {
-            // This is a bot command with options - try to provide option autocomplete
-            const args_text = current_token.slice(space_index + 1);
-            const option_context = parse_command_options(bot_command, args_text);
-
-            if (option_context && option_context.current_option) {
-                // We're typing an option value - get suggestions
-                completing = "slash_option";
-                token = option_context.partial_value;
-
-                // Get static choices from the option schema
-                const static_choices = option_context.current_option.choices ?? [];
-                const static_matches: SlashCommandSuggestion[] = static_choices
-                    .filter((c) => c.name.toLowerCase().includes(token.toLowerCase()))
-                    .map((choice) => ({
-                        text: choice.name,
-                        name: choice.value,
-                        info: "",
-                        aliases: "",
-                        type: "slash_option" as const,
-                    }));
-
-                // Fetch dynamic suggestions in background
-                const dynamic_choices = bot_command_store.get_option_suggestions_sync(
-                    bot_command.bot_id,
-                    command_name,
-                    option_context.current_option.name,
-                    token,
-                );
-
-                const dynamic_matches: SlashCommandSuggestion[] = dynamic_choices
-                    .filter((c) => c.label.toLowerCase().includes(token.toLowerCase()))
-                    .map((choice) => ({
-                        text: choice.label,
-                        name: choice.value,
-                        info: "",
-                        aliases: "",
-                        type: "slash_option" as const,
-                    }));
-
-                // Combine and dedupe by value
-                const seen = new Set<string>();
-                const combined: SlashCommandSuggestion[] = [];
-                for (const match of [...static_matches, ...dynamic_matches]) {
-                    if (!seen.has(match.name)) {
-                        seen.add(match.name);
-                        combined.push(match);
-                    }
-                }
-
-                return combined;
-            }
-        }
-
-        // No option autocomplete available - fall back to no suggestions
+        // User has typed a space after command name - no suggestions in plain compose.
+        // They should use the command composer (Tab/Enter on command) for option input.
         return [];
     }
 
@@ -1480,6 +1374,19 @@ export function content_typeahead_selected(
             break;
         }
         case "slash":
+            // Check if this is a bot command with options - enter command mode
+            if (item.bot_command) {
+                // Clear the partial command from the textarea
+                beginning = beginning.slice(0, -token.length - 1);
+                rest = "";
+                // Enter command compose mode
+                command_compose.enter(item.bot_command);
+                // Return early - the command mode UI handles the rest
+                $textbox.val(beginning);
+                $textbox.caret(beginning.length);
+                return beginning;
+            }
+            // Regular slash command (built-in or bot command without options)
             beginning = beginning.slice(0, -token.length - 1) + "/" + item.name + " ";
             if (item.placeholder) {
                 beginning = beginning + item.placeholder;

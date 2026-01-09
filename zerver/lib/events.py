@@ -391,11 +391,6 @@ def fetch_initial_state_data(
         if presence_last_update_id_fetched_by_server is not None:
             state["presence_last_update_id"] = presence_last_update_id_fetched_by_server
 
-        # Add bot presences
-        from zerver.actions.bot_presence import get_bot_presence_dict_for_realm
-
-        state["bot_presences"] = get_bot_presence_dict_for_realm(realm.id)
-
         # Send server_timestamp, to match the format of `GET /presence` requests.
         state["server_timestamp"] = time.time()
 

@@ -96,6 +96,8 @@ def do_add_submessage(
         submessage_id=submessage.id,
         sender_id=sender_id,
         content=content,
+        # Include visibility info so frontend can render ephemeral indicator
+        visible_to=visible_user_ids,
     )
 
     # Determine target users for the event

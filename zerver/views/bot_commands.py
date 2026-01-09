@@ -4,27 +4,23 @@ import uuid
 from typing import Annotated, Any
 
 import requests
-from django.conf import settings
 from django.db import transaction
 from django.http import HttpRequest, HttpResponse
 from django.utils.translation import gettext as _
 from pydantic import Json
 
 from version import ZULIP_VERSION
-from zerver.actions.message_send import (
-    check_message,
-    do_send_messages,
-)
+from zerver.actions.message_send import check_message, do_send_messages
 from zerver.decorator import require_organization_member
 from zerver.lib.addressee import Addressee
 from zerver.lib.exceptions import JsonableError
-from zerver.lib.message import SendMessageRequest
 from zerver.lib.outgoing_http import OutgoingSession
 from zerver.lib.queue import queue_event_on_commit
 from zerver.lib.response import json_success
 from zerver.lib.typed_endpoint import typed_endpoint, typed_endpoint_without_parameters
-from zerver.models import BotCommand, Message, Recipient, Stream, SubMessage, UserProfile
+from zerver.models import BotCommand, Stream, UserProfile
 from zerver.models.bots import get_bot_services
+from zerver.models.clients import get_client
 from zerver.models.users import active_user_ids, get_user_profile_by_id
 from zerver.tornado.django_api import send_event_on_commit
 
@@ -392,21 +388,15 @@ def invoke_bot_command(
     # Check and create the message
     message_send_request = check_message(
         sender=user_profile,
-        client=request.client,
+        client=get_client("website"),
         addressee=addressee,
-        message_content=content,
-        realm=user_profile.realm,
-        forged=False,
-        forged_timestamp=None,
-        forwarder_user_profile=None,
-        local_id=None,
-        sender_queue_id=None,
+        message_content_raw=content,
         widget_content=json.dumps(widget_content),
     )
 
     # Send the message
-    sent_message_ids = do_send_messages([message_send_request])
-    message_id = sent_message_ids[0]
+    sent_message_results = do_send_messages([message_send_request])
+    message_id = sent_message_results[0].message_id
 
     # Queue the command invocation for the bot
     _queue_command_invocation(

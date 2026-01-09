@@ -20,7 +20,6 @@ import * as banners from "./banners.ts";
 import * as blueslip from "./blueslip.ts";
 import * as bot_command_store from "./bot_command_store.ts";
 import * as bot_data from "./bot_data.ts";
-import * as bot_presence from "./bot_presence.ts";
 import * as channel from "./channel.ts";
 import * as channel_folders from "./channel_folders.ts";
 import * as channel_folders_popover from "./channel_folders_popover.ts";
@@ -673,7 +672,6 @@ export async function initialize_everything(state_data) {
     giphy.initialize();
     tenor.initialize();
     presence.initialize(state_data.presence);
-    bot_presence.set_info(state_data.presence.bot_presences ?? {});
     settings_preferences.initialize();
     settings_notifications.initialize();
     settings_realm_user_settings_defaults.initialize();

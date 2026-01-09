@@ -9,7 +9,7 @@
             {{#if is_button}}
             <button
                 class="widget-button widget-button-{{style}}"
-                data-custom-id="{{custom_id}}"
+                {{#if custom_id}}data-custom-id="{{custom_id}}"{{/if}}
                 {{#if url}}data-url="{{url}}"{{/if}}
                 {{#if disabled}}disabled{{/if}}
             >

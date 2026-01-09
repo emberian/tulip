@@ -114,36 +114,3 @@ class UserStatus(AbstractEmoji):
     status_text = models.CharField(max_length=255, default="")
 
 
-class BotPresence(models.Model):
-    """Tracks the connection status of bots.
-
-    Unlike UserPresence which tracks active/idle/offline for humans based on
-    activity, BotPresence is a simple connected/disconnected status.
-
-    Bots can update their presence either:
-    1. Automatically via the event queue system (connected when queue exists)
-    2. Explicitly via the API (for webhook bots without persistent connections)
-    """
-
-    bot = models.OneToOneField(
-        UserProfile,
-        on_delete=CASCADE,
-        limit_choices_to={"is_bot": True},
-    )
-
-    # Denormalized for efficient realm-wide queries
-    realm = models.ForeignKey(Realm, on_delete=CASCADE)
-
-    # Whether the bot is currently connected/online
-    is_connected = models.BooleanField(default=False)
-
-    # When the bot last connected (for display purposes)
-    last_connected_time = models.DateTimeField(default=timezone_now, db_index=True)
-
-    class Meta:
-        indexes = [
-            models.Index(
-                fields=["realm", "is_connected"],
-                name="zerver_botpresence_realm_connected_idx",
-            ),
-        ]

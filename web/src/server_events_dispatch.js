@@ -8,7 +8,6 @@ import * as audible_notifications from "./audible_notifications.ts";
 import * as blueslip from "./blueslip.ts";
 import * as bot_command_store from "./bot_command_store.ts";
 import * as bot_data from "./bot_data.ts";
-import * as bot_presence from "./bot_presence.ts";
 import * as browser_history from "./browser_history.ts";
 import {buddy_list} from "./buddy_list.ts";
 import * as channel_folders from "./channel_folders.ts";
@@ -233,12 +232,7 @@ export function dispatch_normal_event(event) {
             break;
 
         case "presence":
-            activity_ui.update_presence_info(event.presences);
-            break;
-
-        case "bot_presence":
-            bot_presence.update_info(event.bot_id, event.is_connected, event.last_connected_time);
-            activity_ui.redraw();
+            activity_ui.update_presence_info({[event.user_id]: event.modern_presence});
             break;
 
         case "restart":

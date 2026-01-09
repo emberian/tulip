@@ -95,10 +95,10 @@ class BotInteractionWorker(QueueProcessingWorker):
                 "bot_full_name": bot_profile.full_name,
                 "interaction_id": event.get("interaction_id"),
                 "command": event["command"],
-                "arguments": event["arguments"],
+                "arguments": event.get("arguments", {}),
                 "message_id": event["message_id"],
-                "context": event["context"],
-                "user": event["user"],
+                "context": event.get("context", {}),
+                "user": event.get("user", {}),
             }
 
             try:
@@ -155,10 +155,10 @@ class BotInteractionWorker(QueueProcessingWorker):
                         command={
                             "interaction_id": event.get("interaction_id"),
                             "name": event["command"],
-                            "arguments": event["arguments"],
+                            "arguments": event.get("arguments", {}),
                             "message_id": event["message_id"],
-                            "context": event["context"],
-                            "user": event["user"],
+                            "context": event.get("context", {}),
+                            "user": event.get("user", {}),
                         },
                         bot_handler=embedded_bot_handler,
                     )
@@ -188,11 +188,16 @@ class BotInteractionWorker(QueueProcessingWorker):
         """
         Process a bot's response to a command invocation.
 
-        Similar to interaction responses, bots can reply with messages or widget updates.
+        Bots can respond to commands with:
+        - A new message (public reply)
+        - An ephemeral response (visible only to the invoking user)
+        - A private response (visible to a subset of users)
+        - Widget content (interactive elements)
         """
         import json
 
         from zerver.actions.message_send import check_send_message
+        from zerver.actions.submessage import do_add_submessage
         from zerver.models import Stream
         from zerver.models.clients import get_client
 
@@ -204,10 +209,58 @@ class BotInteractionWorker(QueueProcessingWorker):
             if not isinstance(response_json, dict):
                 return
 
-            if "content" not in response_json:
+            # Check if we have content or widget_content to send
+            has_content = "content" in response_json and response_json["content"]
+            has_widget = "widget_content" in response_json and response_json["widget_content"]
+
+            if not has_content and not has_widget:
                 return
 
-            context = event["context"]
+            # Determine visibility for the response
+            visible_user_ids: list[int] | None = None
+            if response_json.get("ephemeral"):
+                # Ephemeral response - only visible to the user who invoked the command
+                visible_user_ids = [event["user"]["id"]]
+            elif response_json.get("visible_user_ids"):
+                # Private response - visible to specified users
+                visible_user_ids = response_json["visible_user_ids"]
+
+            # If response is ephemeral/private, create a submessage instead of a new message
+            # This allows visibility filtering to work correctly
+            if visible_user_ids is not None:
+                message_id = event.get("message_id")
+                if not message_id:
+                    logger.warning("Cannot create ephemeral response: no message_id in event")
+                    return
+
+                # Create submessage with visibility constraint
+                submessage_content = json.dumps(
+                    {
+                        "type": "ephemeral_response",
+                        "interaction_id": event.get("interaction_id"),
+                        "content": response_json.get("content", ""),
+                        "widget_content": response_json.get("widget_content"),
+                    }
+                )
+
+                do_add_submessage(
+                    realm=bot_profile.realm,
+                    sender_id=bot_profile.id,
+                    message_id=message_id,
+                    msg_type="widget",
+                    content=submessage_content,
+                    visible_user_ids=visible_user_ids,
+                )
+                logger.info("Created ephemeral/private submessage for command response")
+                return
+
+            # Public response - send as a new message
+            # If we only have widget, provide minimal content
+            content = response_json.get("content", "")
+            if not content and has_widget:
+                content = "\u200b"  # Zero-width space as minimal content
+
+            context = event.get("context", {})
             client = get_client("BotCommandResponse")
 
             if context.get("stream_id"):
@@ -217,7 +270,11 @@ class BotInteractionWorker(QueueProcessingWorker):
                 topic_name = context.get("topic")
             else:
                 recipient_type_name = "private"
-                message_to = [event["user"]["email"]]
+                user_data = event.get("user", {})
+                if not user_data.get("email"):
+                    logger.warning("Cannot send DM response: no user email in event")
+                    return
+                message_to = [user_data["email"]]
                 topic_name = None
 
             widget_content = response_json.get("widget_content")
@@ -230,11 +287,12 @@ class BotInteractionWorker(QueueProcessingWorker):
                 recipient_type_name=recipient_type_name,
                 message_to=message_to,
                 topic_name=topic_name,
-                message_content=response_json["content"],
+                message_content=content,
                 widget_content=widget_content,
                 realm=bot_profile.realm,
                 skip_stream_access_check=True,
             )
+            logger.info("Sent bot command response message")
 
         except json.JSONDecodeError:
             logger.debug("Bot command response was not valid JSON, ignoring")

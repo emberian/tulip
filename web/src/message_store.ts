@@ -63,6 +63,8 @@ export const submessage_schema = z.object({
     message_id: z.number(),
     content: z.string(),
     msg_type: z.string(),
+    // If set, this submessage is only visible to users with IDs in this list (ephemeral/private)
+    visible_to: z.nullable(z.array(z.number())).optional(),
 });
 
 export const raw_message_schema = z.intersection(

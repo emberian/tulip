@@ -74,7 +74,6 @@ class HomeTest(ZulipTestCase):
         "avatar_url",
         "avatar_url_medium",
         "bot_commands",
-        "bot_presences",
         "can_create_private_streams",
         "can_create_public_streams",
         "can_create_streams",

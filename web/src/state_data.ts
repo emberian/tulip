@@ -326,6 +326,7 @@ export const unread_direct_message_group_info_schema = z.object({
 export const presence_schema = z.object({
     active_timestamp: z.optional(z.number()),
     idle_timestamp: z.optional(z.number()),
+    is_bot: z.optional(z.boolean()),
 });
 
 export const realm_billing_schema = z.object({
@@ -658,15 +659,6 @@ export const split_state_data_schema = z.object({
     }),
     presence: z.object({
         presences: z.record(z.coerce.number<string>(), presence_schema),
-        bot_presences: z.optional(
-            z.record(
-                z.coerce.number<string>(),
-                z.object({
-                    is_connected: z.boolean(),
-                    last_connected_time: z.nullable(z.number()),
-                }),
-            ),
-        ),
         server_timestamp: z.number(),
         presence_last_update_id: z.optional(z.number()),
     }),

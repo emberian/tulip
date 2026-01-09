@@ -687,7 +687,10 @@ def webhook():
     elif request_type == 'command_invocation':
         return handle_command_invocation(data)
     else:
-        return handle_message(data)
+        # Legacy message format - just acknowledge, no processing
+        # Commands should use the invoke API, not message parsing
+        logger.info("Received legacy message format - ignoring")
+        return jsonify({})
 
 
 def handle_autocomplete(data):
@@ -750,41 +753,43 @@ def handle_command_invocation(data):
 
 def handle_testbot_invocation(test_type):
     """Handle /testbot command invocation"""
-    widgets_to_send = []
+    # Map test types to their widget creators
+    test_widgets = {
+        'embed_basic': ("Rich Embed (Basic)", create_rich_embed_basic),
+        'embed_full': ("Rich Embed (Full)", create_rich_embed_full),
+        'buttons': ("Button Styles", create_button_widget_all_styles),
+        'approval': ("Approval Workflow", create_approval_workflow),
+        'select': ("Select Menus", create_select_menu_widget),
+        'modal': ("Modal Forms", create_modal_button_widget),
+        'freeform_counter': ("Freeform Counter", create_freeform_counter),
+        'freeform_poll': ("Freeform Poll", create_freeform_poll),
+    }
 
-    if test_type in ['embed_basic', 'all']:
-        widgets_to_send.append(("Rich Embed (Basic)", create_rich_embed_basic()))
-
-    if test_type in ['embed_full', 'all']:
-        widgets_to_send.append(("Rich Embed (Full)", create_rich_embed_full()))
-
-    if test_type in ['buttons', 'all']:
-        widgets_to_send.append(("Button Styles", create_button_widget_all_styles()))
-
-    if test_type in ['approval', 'all']:
-        widgets_to_send.append(("Approval Workflow", create_approval_workflow()))
-
-    if test_type in ['select', 'all']:
-        widgets_to_send.append(("Select Menus", create_select_menu_widget()))
-
-    if test_type in ['modal', 'all']:
-        widgets_to_send.append(("Modal Forms", create_modal_button_widget()))
-
-    if test_type in ['freeform_counter', 'all']:
-        widgets_to_send.append(("Freeform Counter", create_freeform_counter()))
-
-    if test_type in ['freeform_poll', 'all']:
-        widgets_to_send.append(("Freeform Poll", create_freeform_poll()))
-
-    if not widgets_to_send:
+    # Special test types that return different response formats
+    if test_type == 'ephemeral':
+        # Test ephemeral response - only visible to the invoking user
         return jsonify({
-            "content": f"Unknown test type: `{test_type}`"
+            "ephemeral": True,
+            "content": "**This is an ephemeral response!**\n\nOnly you can see this message. Other users in this conversation cannot see it.\n\nYou can dismiss it by clicking the X button."
         })
 
-    name, widget = widgets_to_send[0]
+    if test_type == 'all':
+        # List all available tests - only one widget per message is supported
+        test_list = "\n".join([f"- `{key}`: {name}" for key, (name, _) in test_widgets.items()])
+        return jsonify({
+            "content": f"**Available Widget Tests**\n\nRun individual tests using `/testbot <test>`. Each bot response can only include one widget.\n\n{test_list}\n- `ephemeral`: Ephemeral Response (only you can see)"
+        })
+
+    if test_type not in test_widgets:
+        return jsonify({
+            "content": f"Unknown test type: `{test_type}`\n\nUse `/testbot all` to see available tests."
+        })
+
+    name, create_widget = test_widgets[test_type]
+    widget = create_widget()
 
     return jsonify({
-        "content": f"**{name}** widget:" if len(widgets_to_send) == 1 else f"Showing **{name}** (1 of {len(widgets_to_send)}):",
+        "content": f"**{name}** widget:",
         "widget_content": json.dumps(widget)
     })
 
@@ -1078,201 +1083,6 @@ def handle_freeform(data, user):
     return jsonify({})
 
 
-def handle_message(data):
-    """Handle regular messages (including slash commands)"""
-    message = data.get('message', {})
-    content = message.get('content', '')
-
-    logger.info(f"Message received: {content}")
-
-    # Handle /testbot command
-    if content.startswith('/testbot'):
-        return handle_testbot_command(content)
-
-    # Handle /weather command
-    if content.startswith('/weather'):
-        return handle_weather_command(content)
-
-    # Handle /inventory command
-    if content.startswith('/inventory'):
-        return handle_inventory_command(content)
-
-    # Handle /echo command
-    if content.startswith('/echo'):
-        return handle_echo_command(content, data.get('user', {}))
-
-    # Help message for any other message
-    return jsonify({
-        "content": """**Test Bot Commands:**
-- `/testbot test:<widget>` - Test widget types (embed_basic, embed_full, buttons, approval, select, modal, freeform_counter, freeform_poll, all)
-- `/weather location:<city>` - Get weather (with autocomplete)
-- `/inventory item:<search>` - Search inventory (with autocomplete)
-- `/echo message:<text> type:<public|ephemeral|widget>` - Test response types"""
-    })
-
-
-def handle_testbot_command(content):
-    """Handle /testbot command"""
-    # Parse test type from content
-    test_type = 'all'
-    if 'test:' in content:
-        test_type = content.split('test:')[1].split()[0].strip()
-
-    widgets_to_send = []
-
-    if test_type in ['embed_basic', 'all']:
-        widgets_to_send.append(("Rich Embed (Basic)", create_rich_embed_basic()))
-
-    if test_type in ['embed_full', 'all']:
-        widgets_to_send.append(("Rich Embed (Full)", create_rich_embed_full()))
-
-    if test_type in ['buttons', 'all']:
-        widgets_to_send.append(("Button Styles", create_button_widget_all_styles()))
-
-    if test_type in ['approval', 'all']:
-        widgets_to_send.append(("Approval Workflow", create_approval_workflow()))
-
-    if test_type in ['select', 'all']:
-        widgets_to_send.append(("Select Menus", create_select_menu_widget()))
-
-    if test_type in ['modal', 'all']:
-        widgets_to_send.append(("Modal Forms", create_modal_button_widget()))
-
-    if test_type in ['freeform_counter', 'all']:
-        widgets_to_send.append(("Freeform Counter", create_freeform_counter()))
-
-    if test_type in ['freeform_poll', 'all']:
-        widgets_to_send.append(("Freeform Poll", create_freeform_poll()))
-
-    if not widgets_to_send:
-        return jsonify({
-            "content": f"Unknown test type: `{test_type}`"
-        })
-
-    # For 'all', we can only send one widget per message, so send the first one
-    # In a real implementation, you'd send multiple messages
-    name, widget = widgets_to_send[0]
-
-    return jsonify({
-        "content": f"**{name}** widget:" if len(widgets_to_send) == 1 else f"Showing **{name}** (1 of {len(widgets_to_send)}):",
-        # widget_content must be a JSON-encoded string, not a dict
-        "widget_content": json.dumps(widget)
-    })
-
-
-def handle_weather_command(content):
-    """Handle /weather command"""
-    location = 'Unknown'
-    units = 'f'
-
-    if 'location:' in content:
-        location = content.split('location:')[1].split()[0].strip()
-    if 'units:' in content:
-        units = content.split('units:')[1].split()[0].strip()
-
-    temp = 72 if units == 'f' else 22
-    unit_symbol = '°F' if units == 'f' else '°C'
-
-    return jsonify({
-        "content": "",
-        "widget_content": json.dumps({
-            "widget_type": "rich_embed",
-            "extra_data": {
-                "title": f"Weather for {location}",
-                "description": "Sunny with a chance of clouds",
-                "color": 16776960,  # Yellow
-                "fields": [
-                    {"name": "Temperature", "value": f"{temp}{unit_symbol}", "inline": True},
-                    {"name": "Humidity", "value": "45%", "inline": True},
-                    {"name": "Wind", "value": "5 mph", "inline": True}
-                ],
-                "footer": {
-                    "text": "Weather data is simulated for testing"
-                }
-            }
-        })
-    })
-
-
-def handle_inventory_command(content):
-    """Handle /inventory command"""
-    search = ''
-    if 'item:' in content:
-        search = content.split('item:')[1].strip()
-
-    matching_items = [
-        item for item in INVENTORY_ITEMS
-        if search.lower() in item['label'].lower() or search.lower() in item['value']
-    ]
-
-    if not matching_items:
-        return jsonify({
-            "content": f"No items found matching `{search}`"
-        })
-
-    fields = [
-        {"name": item['label'], "value": item['description'], "inline": True}
-        for item in matching_items[:9]  # Max 9 fields for nice 3x3 grid
-    ]
-
-    return jsonify({
-        "content": "",
-        "widget_content": json.dumps({
-            "widget_type": "rich_embed",
-            "extra_data": {
-                "title": f"Inventory Search: {search}",
-                "description": f"Found {len(matching_items)} items",
-                "color": 10181046,  # Purple
-                "fields": fields
-            }
-        })
-    })
-
-
-def handle_echo_command(content, user):
-    """Handle /echo command"""
-    message = 'Hello!'
-    response_type = 'public'
-
-    if 'message:' in content:
-        # Extract message (handle quoted strings)
-        rest = content.split('message:')[1]
-        if rest.startswith('"'):
-            message = rest[1:].split('"')[0]
-        else:
-            message = rest.split()[0] if rest.split() else 'Hello!'
-
-    if 'type:' in content:
-        response_type = content.split('type:')[1].split()[0].strip()
-
-    if response_type == 'ephemeral':
-        return jsonify({
-            "ephemeral": True,
-            "content": f"(Ephemeral) {message}"
-        })
-
-    if response_type == 'widget':
-        return jsonify({
-            "content": "",
-            "widget_content": json.dumps({
-                "widget_type": "rich_embed",
-                "extra_data": {
-                    "title": "Echo Widget",
-                    "description": message,
-                    "color": 3066993,
-                    "author": {
-                        "name": user.get('full_name', 'Unknown')
-                    }
-                }
-            })
-        })
-
-    # Public (default)
-    return jsonify({
-        "content": message
-    })
-
-
 # =============================================================================
 # UTILITY ENDPOINTS
 # =============================================================================
@@ -1310,11 +1120,17 @@ def index():
             pre { background: #1e293b; color: #e2e8f0; padding: 15px; border-radius: 8px; overflow-x: auto; }
             .section { margin: 30px 0; padding: 20px; background: #f8fafc; border-radius: 8px; }
             ul { line-height: 1.8; }
+            .note { background: #fef3c7; border-left: 4px solid #f59e0b; padding: 12px; margin: 20px 0; }
         </style>
     </head>
     <body>
         <h1>Tulip Advanced Bot Tester</h1>
-        <p>This bot tests all features documented in <code>ADVANCED_BOTS.md</code>.</p>
+        <p>This bot tests all advanced bot features using the <strong>new command invocation API</strong>.</p>
+
+        <div class="note">
+            <strong>Setup Required:</strong> Register commands using <code>register_test_bot_commands.py</code>
+            before using slash commands in the UI.
+        </div>
 
         <div class="section">
             <h2>Webhook Endpoint</h2>
@@ -1322,21 +1138,31 @@ def index():
         </div>
 
         <div class="section">
-            <h2>Available Commands</h2>
+            <h2>Registered Commands (via Command Composer UI)</h2>
             <ul>
-                <li><code>/testbot test:&lt;type&gt;</code> - Test widget types</li>
-                <li><code>/weather location:&lt;city&gt;</code> - Weather with autocomplete</li>
-                <li><code>/inventory item:&lt;search&gt;</code> - Inventory with autocomplete</li>
-                <li><code>/echo message:&lt;text&gt; type:&lt;public|ephemeral|widget&gt;</code> - Test responses</li>
+                <li><code>/testbot</code> - Test widget types (select from dropdown)</li>
+                <li><code>/weather</code> - Weather with location autocomplete</li>
+                <li><code>/inventory</code> - Inventory search with autocomplete</li>
+                <li><code>/echo</code> - Test response types (public, ephemeral, widget)</li>
             </ul>
         </div>
 
         <div class="section">
             <h2>Widget Types Tested</h2>
             <ul>
-                <li><strong>Rich Embed</strong> - Basic and full-featured</li>
+                <li><strong>Rich Embed</strong> - Basic and full-featured embeds</li>
                 <li><strong>Interactive</strong> - Buttons, Select Menus, Modals</li>
-                <li><strong>Freeform</strong> - Counter and Poll widgets</li>
+                <li><strong>Freeform</strong> - Custom HTML/CSS/JS widgets</li>
+                <li><strong>Command Invocation</strong> - Slash command display widget</li>
+            </ul>
+        </div>
+
+        <div class="section">
+            <h2>Webhook Request Types Handled</h2>
+            <ul>
+                <li><code>command_invocation</code> - Slash command executed via invoke API</li>
+                <li><code>autocomplete</code> - Dynamic option suggestions</li>
+                <li><code>interaction</code> - Button clicks, select menus, modal submits</li>
             </ul>
         </div>
 
@@ -1360,20 +1186,19 @@ if __name__ == '__main__':
     print()
     print("Webhook URL: http://localhost:5050/webhook")
     print()
-    print("Features tested:")
-    print("  - Rich Embed widgets (basic and full)")
-    print("  - Interactive widgets (buttons, select menus)")
-    print("  - Modal forms with text inputs")
-    print("  - Freeform widgets (counter, poll)")
-    print("  - Bot commands with static choices")
-    print("  - Dynamic autocomplete")
-    print("  - Response types (public, ephemeral, widget)")
+    print("SETUP:")
+    print("  1. Create an outgoing webhook bot pointing to this URL")
+    print("  2. Run: python register_test_bot_commands.py --bot-email <email> --api-key <key>")
+    print("  3. Use /testbot, /weather, /inventory, /echo via command composer")
     print()
-    print("Commands:")
-    print("  /testbot test:<type>  - Test widget types")
-    print("  /weather location:<city> units:<c|f>")
-    print("  /inventory item:<search>")
-    print("  /echo message:<text> type:<public|ephemeral|widget>")
+    print("Features tested:")
+    print("  - Command invocation via new invoke API")
+    print("  - Dynamic autocomplete for command options")
+    print("  - Rich Embed widgets (basic and full)")
+    print("  - Interactive widgets (buttons, select menus, modals)")
+    print("  - Freeform widgets (custom HTML/CSS/JS)")
+    print("  - Response types (public, ephemeral, widget replies)")
+    print("  - Widget interactions (button clicks, selections, form submits)")
     print()
     print("=" * 60)
 

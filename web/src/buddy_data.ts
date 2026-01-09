@@ -1,6 +1,5 @@
 import assert from "minimalistic-assert";
 
-import * as bot_presence from "./bot_presence.ts";
 import * as hash_util from "./hash_util.ts";
 import {$t} from "./i18n.ts";
 import * as message_lists from "./message_lists.ts";
@@ -57,8 +56,8 @@ export function get_user_circle_class(user_id: number, use_deactivated_circle = 
 
     const person = people.maybe_get_user_by_id(user_id, true);
     if (person?.is_bot) {
-        // For bots, check bot_presence to determine if connected
-        const is_connected = bot_presence.is_bot_connected(user_id);
+        // For bots, use presence.is_bot_connected to determine if connected
+        const is_connected = presence.is_bot_connected(user_id);
         return is_connected ? "user-circle-bot" : "user-circle-offline";
     }
 

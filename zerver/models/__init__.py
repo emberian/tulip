@@ -41,7 +41,6 @@ from zerver.models.prereg_users import MultiuseInvite as MultiuseInvite
 from zerver.models.prereg_users import PreregistrationRealm as PreregistrationRealm
 from zerver.models.prereg_users import PreregistrationUser as PreregistrationUser
 from zerver.models.prereg_users import RealmReactivationStatus as RealmReactivationStatus
-from zerver.models.presence import BotPresence as BotPresence
 from zerver.models.presence import UserPresence as UserPresence
 from zerver.models.presence import UserStatus as UserStatus
 from zerver.models.push_notifications import AbstractPushDevice as AbstractPushDevice

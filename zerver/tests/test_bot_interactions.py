@@ -6,7 +6,7 @@ import requests
 import responses
 
 from zerver.lib.test_classes import ZulipTestCase
-from zerver.models import BotPresence, Message, SubMessage, UserProfile
+from zerver.models import Message, SubMessage, UserPresence, UserProfile
 from zerver.models.bots import Service
 from zerver.tests.test_queue_worker import FakeClient, simulated_queue_client
 from zerver.worker.bot_interactions import BotInteractionWorker
@@ -1180,7 +1180,7 @@ class BotPresenceQueueIntegrationTests(ZulipTestCase):
     def test_bot_presence_update_via_deferred_work_connect(self) -> None:
         """Test that bot_presence_update events are processed by DeferredWorker."""
         bot = self.example_user("default_bot")
-        BotPresence.objects.filter(bot=bot).delete()
+        UserPresence.objects.filter(user_profile=bot).delete()
 
         event = {
             "type": "bot_presence_update",
@@ -1197,13 +1197,13 @@ class BotPresenceQueueIntegrationTests(ZulipTestCase):
             worker.start()
 
         # Verify presence was updated
-        presence = BotPresence.objects.get(bot=bot)
-        self.assertTrue(presence.is_connected)
+        presence = UserPresence.objects.get(user_profile=bot)
+        self.assertIsNotNone(presence.last_active_time)
 
     def test_bot_presence_update_via_deferred_work_disconnect(self) -> None:
         """Test that disconnect events are processed correctly."""
         bot = self.example_user("default_bot")
-        BotPresence.objects.filter(bot=bot).delete()
+        UserPresence.objects.filter(user_profile=bot).delete()
 
         # First connect the bot
         from zerver.actions.bot_presence import do_update_bot_presence
@@ -1211,8 +1211,8 @@ class BotPresenceQueueIntegrationTests(ZulipTestCase):
         do_update_bot_presence(bot, is_connected=True)
 
         # Verify it's connected
-        presence = BotPresence.objects.get(bot=bot)
-        self.assertTrue(presence.is_connected)
+        presence = UserPresence.objects.get(user_profile=bot)
+        self.assertIsNotNone(presence.last_active_time)
 
         # Now queue a disconnect event
         event = {
@@ -1231,7 +1231,7 @@ class BotPresenceQueueIntegrationTests(ZulipTestCase):
 
         # Verify presence was updated to disconnected
         presence.refresh_from_db()
-        self.assertFalse(presence.is_connected)
+        self.assertIsNone(presence.last_active_time)
 
     def test_bot_presence_connect_hook_queues_event(self) -> None:
         """Test that the bot_presence_connect_hook queues the correct event."""
@@ -1327,8 +1327,8 @@ class BotPresenceQueueIntegrationTests(ZulipTestCase):
             worker.setup()
             worker.start()
 
-        # No BotPresence should be created for non-bots
-        self.assertFalse(BotPresence.objects.filter(bot=user).exists())
+        # No UserPresence should be created for non-bots via bot presence update
+        self.assertFalse(UserPresence.objects.filter(user_profile=user).exists())
 
 
 class BotInteractionWithPresenceTests(ZulipTestCase):
@@ -1440,8 +1440,8 @@ class BotInteractionWithPresenceTests(ZulipTestCase):
         self.assert_length(responses.calls, 1)
 
         # Verify bot is still connected
-        presence = BotPresence.objects.get(bot=bot)
-        self.assertTrue(presence.is_connected)
+        presence = UserPresence.objects.get(user_profile=bot)
+        self.assertIsNotNone(presence.last_active_time)
 
     @responses.activate
     def test_interaction_works_with_disconnected_bot(self) -> None:
@@ -1465,8 +1465,8 @@ class BotInteractionWithPresenceTests(ZulipTestCase):
         do_update_bot_presence(bot, is_connected=True)
         do_update_bot_presence(bot, is_connected=False)
 
-        presence = BotPresence.objects.get(bot=bot)
-        self.assertFalse(presence.is_connected)
+        presence = UserPresence.objects.get(user_profile=bot)
+        self.assertIsNone(presence.last_active_time)
 
         # Bot's webhook is still responsive
         responses.add(
