@@ -91,6 +91,7 @@ class BotInteractionWorker(QueueProcessingWorker):
 
         try:
             submessage_content = json.dumps({
+                "type": "command_status",
                 "status": "error",
                 "error": error_message,
             })

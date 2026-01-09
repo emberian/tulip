@@ -771,6 +771,7 @@ def fetch_initial_state_data(
         state["email"] = settings_user.email
         state["delivery_email"] = settings_user.delivery_email
         state["full_name"] = settings_user.full_name
+        state["color"] = settings_user.color
 
     if want("realm_bot"):
         state["realm_bots"] = [] if user_profile is None else get_owned_bot_dicts(user_profile)
@@ -1237,7 +1238,7 @@ def apply_event(
                             get_default_stream_ids_for_realm(user_profile.realm_id)
                         )
 
-                for field in ["delivery_email", "email", "full_name"]:
+                for field in ["color", "delivery_email", "email", "full_name"]:
                     if field in person and field in state:
                         state[field] = person[field]
 

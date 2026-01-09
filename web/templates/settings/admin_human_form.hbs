@@ -24,6 +24,22 @@
                 {{> dropdown_options_widget option_values=user_role_values}}
             </select>
         </div>
+        {{#if is_me}}
+        <div class="input-group color_change_container">
+            <label for="edit_user_color" class="modal-field-label">{{t "Display color" }}</label>
+            <div class="alert-notification edit-user-color-status"></div>
+            <div class="color-picker-container">
+                <input id="edit_user_color" name="user_color" class="user-color-input" type="color" value="{{#if color}}{{color}}{{else}}#3c78d8{{/if}}" />
+                {{> ../components/action_button
+                  label=(t "Clear color")
+                  attention="quiet"
+                  intent="neutral"
+                  id="edit_clear_user_color_button"
+                  custom_classes="clear-color-btn"
+                  }}
+            </div>
+        </div>
+        {{/if}}
         <div class="custom-profile-field-form"></div>
     </form>
     <div class="input-group {{#if hide_deactivate_button}}hide{{/if}}">

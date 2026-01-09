@@ -2303,6 +2303,47 @@ label.preferences-radio-choice-label {
     }
 }
 
+/* User display color picker styling */
+.color-picker-container {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+
+    .user-color-input {
+        width: 60px;
+        height: 34px;
+        padding: 2px;
+        border: 1px solid hsl(0deg 0% 80%);
+        border-radius: 4px;
+        cursor: pointer;
+        background-color: transparent;
+
+        &::-webkit-color-swatch-wrapper {
+            padding: 2px;
+        }
+
+        &::-webkit-color-swatch {
+            border: none;
+            border-radius: 2px;
+        }
+
+        &::-moz-color-swatch {
+            border: none;
+            border-radius: 2px;
+        }
+
+        &:hover {
+            border-color: hsl(0deg 0% 60%);
+        }
+
+        &:focus {
+            border-color: hsl(206deg 80% 62% / 80%);
+            outline: 0;
+            box-shadow: 0 0 8px hsl(206deg 80% 62% / 60%);
+        }
+    }
+}
+
 #generate-integration-url-modal {
     .inline {
         display: inline;

@@ -11,6 +11,8 @@ import * as z from "zod/mini";
 import render_ephemeral_response from "../templates/widgets/ephemeral_response.hbs";
 
 import * as blueslip from "./blueslip.ts";
+import * as channel from "./channel.ts";
+import * as markdown from "./markdown.ts";
 import type {Message} from "./message_store.ts";
 import * as people from "./people.ts";
 
@@ -102,10 +104,13 @@ export function render_ephemeral_responses(
                 visibility_text = `Visible to: ${visible_names}`;
             }
 
+            // Render markdown content
+            const rendered_content = markdown.parse_non_message(data.content);
+
             // Render the ephemeral response
             const html = render_ephemeral_response({
                 submessage_id: submessage.id,
-                content: data.content,
+                content: rendered_content,
                 visibility_text,
                 has_widget: !!data.widget_content,
             });
@@ -132,15 +137,30 @@ export function render_ephemeral_responses(
         }
     }
 
-    // Append after message content
-    $row.find(".message_content").after($container);
+    // Append to messagebox-content grid (after reactions/reminders)
+    // We target .messagebox-content directly to ensure proper grid placement,
+    // avoiding the .message_content inside .message_sender for status messages.
+    $row.find(".messagebox-content").append($container);
 }
 
 /**
  * Dismiss an ephemeral message so it won't be shown again.
+ * Also deletes from the server.
  */
 export function dismiss_ephemeral(submessage_id: number): void {
     dismissed_ephemeral_ids.add(submessage_id);
+
+    // Delete from server
+    void channel.del({
+        url: "/json/submessage",
+        data: {submessage_id: JSON.stringify(submessage_id)},
+        error(xhr) {
+            blueslip.warn("Failed to delete ephemeral submessage", {
+                submessage_id,
+                status: xhr.status,
+            });
+        },
+    });
 }
 
 /**

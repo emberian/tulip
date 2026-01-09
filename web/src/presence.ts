@@ -218,6 +218,10 @@ export function update_info_from_event(
     if (info !== null) {
         raw.active_timestamp = info.active_timestamp;
         raw.idle_timestamp = info.idle_timestamp;
+        // Copy is_bot flag from event if present
+        if (info.is_bot !== undefined) {
+            raw.is_bot = info.is_bot;
+        }
     }
 
     raw_info.set(user_id, raw);

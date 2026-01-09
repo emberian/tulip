@@ -226,6 +226,10 @@ export const update_person = function update(event: UserUpdate): void {
 
     if ("color" in event) {
         user.color = event.color;
+        // Update current_user if it's me
+        if (people.is_my_user_id(event.user_id)) {
+            current_user.color = event.color;
+        }
         // Trigger UI updates for mentions, sender names, and user lists
         message_live_update.update_user_color(event.user_id, event.color);
         activity_ui.redraw();

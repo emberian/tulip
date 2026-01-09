@@ -47,6 +47,7 @@ import * as settings_components from "./settings_components.ts";
 import * as settings_config from "./settings_config.ts";
 import * as settings_data from "./settings_data.ts";
 import * as settings_profile_fields from "./settings_profile_fields.ts";
+import * as settings_ui from "./settings_ui.ts";
 import type {CustomProfileField, CustomProfileFieldTypes} from "./state_data.ts";
 import {current_user, realm} from "./state_data.ts";
 import * as stream_data from "./stream_data.ts";
@@ -1222,6 +1223,7 @@ export function show_edit_user_info_modal(user_id: number, $container: JQuery): 
     const hide_deactivate_button =
         current_user.is_admin && !current_user.is_owner && person.is_owner;
     const user_is_only_organization_owner = person.is_owner && people.is_current_user_only_owner();
+    const is_me = people.is_my_user_id(user_id);
     const html_body = render_admin_human_form({
         user_id,
         email: person.delivery_email,
@@ -1231,6 +1233,8 @@ export function show_edit_user_info_modal(user_id: number, $container: JQuery): 
         hide_deactivate_button,
         user_is_only_organization_owner,
         max_user_name_length: people.MAX_USER_NAME_LENGTH,
+        is_me,
+        color: is_me ? person.color : null,
     });
 
     $container.append($(html_body));
@@ -1267,6 +1271,40 @@ export function show_edit_user_info_modal(user_id: number, $container: JQuery): 
         },
     );
     original_values = get_current_values($("#edit-user-form"));
+
+    // Handle color picker (only shown when editing own profile)
+    if (is_me) {
+        $("#edit-user-form").on("change", "#edit_user_color", (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            const color = $("#edit_user_color").val();
+            const data = {
+                color: color ? String(color) : null,
+            };
+            settings_ui.do_settings_change(
+                channel.patch,
+                "/json/settings",
+                data,
+                $(".edit-user-color-status").expectOne(),
+            );
+        });
+
+        $("#edit-user-form").on("click", "#edit_clear_user_color_button", (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            const data = {
+                color: null,
+            };
+            settings_ui.do_settings_change(
+                channel.patch,
+                "/json/settings",
+                data,
+                $(".edit-user-color-status").expectOne(),
+            );
+            // Reset the color picker to a default value
+            $("#edit_user_color").val("#3c78d8");
+        });
+    }
 
     // Handle deactivation
     $("#edit-user-form").on("click", ".deactivate-user-button", (e) => {

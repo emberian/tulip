@@ -370,6 +370,7 @@ const current_user_schema = z.object({
     can_create_streams: z.boolean(),
     can_create_web_public_streams: z.boolean(),
     can_invite_others_to_realm: z.boolean(),
+    color: z.nullable(z.string()),
     delivery_email: z.string(),
     email: z.string(),
     full_name: z.string(),

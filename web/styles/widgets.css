@@ -796,22 +796,24 @@ input {
 }
 
 /* Ephemeral/private response styling */
-.ephemeral-response-container {
+.messagebox-content > .ephemeral-response-container {
+    /* Place in the ephemeral grid area, spanning the message column */
+    grid-area: ephemeral;
+    /* Explicit row/column as fallback if grid-area doesn't work */
+    grid-row: 6;
+    grid-column: 2;
     margin-top: 8px;
     display: flex;
     flex-direction: column;
     gap: 8px;
+    /* Ensure proper width - don't let it collapse */
+    min-width: 0;
 }
 
 .ephemeral-response {
     position: relative;
-    background: linear-gradient(
-        135deg,
-        hsl(45deg 100% 96%) 0%,
-        hsl(45deg 80% 94%) 100%
-    );
-    border: 1px solid hsl(45deg 60% 80%);
-    border-left: 3px solid hsl(45deg 80% 55%);
+    background-color: var(--color-background-private-message-content);
+    border-left: 3px solid hsl(45deg 70% 50%);
     border-radius: 4px;
     padding: 8px 12px;
     animation: ephemeral-fade-in 0.3s ease-out;
@@ -835,7 +837,8 @@ input {
     gap: 6px;
     margin-bottom: 6px;
     font-size: 0.85em;
-    color: hsl(45deg 50% 35%);
+    color: var(--color-text-default);
+    opacity: 0.7;
 }
 
 .ephemeral-icon {
@@ -846,7 +849,7 @@ input {
 
 .ephemeral-icon i {
     font-size: 14px;
-    color: hsl(45deg 60% 45%);
+    color: hsl(45deg 70% 50%);
 }
 
 .ephemeral-visibility {
@@ -859,19 +862,13 @@ input {
     border: none;
     padding: 2px 4px;
     cursor: pointer;
-    color: hsl(45deg 40% 45%);
+    color: var(--color-text-default);
+    opacity: 0.5;
     border-radius: 3px;
-    transition:
-        background-color 0.15s ease,
-        color 0.15s ease;
+    transition: opacity 0.15s ease;
 
     &:hover {
-        background-color: hsl(45deg 50% 85%);
-        color: hsl(45deg 50% 30%);
-    }
-
-    &:active {
-        background-color: hsl(45deg 50% 80%);
+        opacity: 1;
     }
 
     & i {
@@ -885,35 +882,5 @@ input {
     /* Ensure markdown renders properly */
     & p:last-child {
         margin-bottom: 0;
-    }
-}
-
-/* Dark mode support */
-.dark-theme {
-    .ephemeral-response {
-        background: linear-gradient(
-            135deg,
-            hsl(45deg 30% 18%) 0%,
-            hsl(45deg 25% 15%) 100%
-        );
-        border-color: hsl(45deg 30% 30%);
-        border-left-color: hsl(45deg 50% 45%);
-    }
-
-    .ephemeral-header {
-        color: hsl(45deg 40% 70%);
-    }
-
-    .ephemeral-icon i {
-        color: hsl(45deg 50% 60%);
-    }
-
-    .ephemeral-dismiss {
-        color: hsl(45deg 30% 60%);
-
-        &:hover {
-            background-color: hsl(45deg 30% 25%);
-            color: hsl(45deg 40% 75%);
-        }
     }
 }

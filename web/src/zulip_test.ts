@@ -26,3 +26,5 @@ export {
 } from "./presence.ts";
 export {redraw as redraw_buddy_list} from "./activity_ui.ts";
 export {get_user_circle_class} from "./buddy_data.ts";
+export {get_commands as get_bot_commands} from "./bot_command_store.ts";
+export {get as get_bot, get_all_bots_for_current_user} from "./bot_data.ts";

@@ -4,6 +4,7 @@ import * as z from "zod/mini";
 import * as blueslip from "./blueslip.ts";
 import * as channel from "./channel.ts";
 import type {Message} from "./message_store.ts";
+import {current_user} from "./state_data.ts";
 import type {Event} from "./widget_data.ts";
 import type {WidgetExtraData} from "./widgetize.ts";
 
@@ -78,11 +79,27 @@ async function load_all_dependencies(
     await Promise.all(deps.map((dep) => load_dependency(dep)));
 }
 
+type SubmessageData = {
+    submessage_id: number;
+    sender_id: number;
+    msg_type: string;
+    content: unknown;
+};
+
 type WidgetContext = {
     message_id: number;
     post_interaction: (data: Record<string, unknown>) => void;
+    post_submessage: (data: Record<string, unknown>) => Promise<void>;
+    on_submessage: (callback: (data: SubmessageData) => void) => void;
     on: (event: string, selector: string, handler: (e: JQuery.Event) => void) => void;
     update_html: (html: string) => void;
+    current_user: {
+        user_id: number;
+        full_name: string;
+        avatar_url?: string;
+    };
+    // Initial submessages that existed when widget was rendered
+    initial_submessages: SubmessageData[];
 };
 
 function scope_css(css: string, message_id: number): string {
@@ -131,6 +148,34 @@ export function activate({
         });
     }
 
+    async function post_submessage(submessage_data: Record<string, unknown>): Promise<void> {
+        await channel.post({
+            url: "/json/submessage",
+            data: {
+                message_id: JSON.stringify(message.id),
+                msg_type: "widget",
+                content: JSON.stringify(submessage_data),
+            },
+        });
+    }
+
+    // Callbacks registered by widgets to receive submessage events
+    const submessage_callbacks: Array<(data: SubmessageData) => void> = [];
+
+    function on_submessage(callback: (data: SubmessageData) => void): void {
+        submessage_callbacks.push(callback);
+    }
+
+    // Extract initial submessages from message (if available)
+    const initial_submessages: SubmessageData[] = (message.submessages ?? [])
+        .filter((sm) => sm.msg_type === "widget")
+        .map((sm) => ({
+            submessage_id: sm.id,
+            sender_id: sm.sender_id,
+            msg_type: sm.msg_type,
+            content: JSON.parse(sm.content) as unknown,
+        }));
+
     async function render(): Promise<void> {
         // Create container with scoped class
         const $container = $(`<div class="widget-freeform ${widget_class}"></div>`);
@@ -164,6 +209,8 @@ export function activate({
             const ctx: WidgetContext = {
                 message_id: message.id,
                 post_interaction,
+                post_submessage,
+                on_submessage,
                 on(event: string, selector: string, handler: (e: JQuery.Event) => void): void {
                     $container.on(event, selector, handler);
                 },
@@ -177,6 +224,12 @@ export function activate({
                     // eslint-disable-next-line no-jquery/no-append-html -- Freeform widgets are trusted bot content
                     $container.append(html);
                 },
+                current_user: {
+                    user_id: current_user.user_id,
+                    full_name: current_user.full_name,
+                    ...(current_user.avatar_url && {avatar_url: current_user.avatar_url}),
+                },
+                initial_submessages,
             };
 
             try {
@@ -194,9 +247,19 @@ export function activate({
 
     void render();
 
-    // Handle events - could be used for bot-initiated updates
+    // Handle events - could be used for bot-initiated updates or submessages
     return (events: Event[]): void => {
         for (const event of events) {
+            // Route all events to submessage callbacks for live updates
+            for (const callback of submessage_callbacks) {
+                callback({
+                    submessage_id: 0, // Not available in live events, use initial_submessages for historical IDs
+                    sender_id: event.sender_id,
+                    msg_type: "widget",
+                    content: event.data,
+                });
+            }
+
             const event_data = event.data;
             if (
                 event_data &&
