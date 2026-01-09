@@ -101,9 +101,9 @@ def check_color(color: str | None) -> str | None:
     """Validate color format (hex: #RGB or #RRGGBB).
 
     Returns the color if valid, raises JsonableError if invalid.
-    None is valid (means no personal color set).
+    None or empty string is valid (means no personal color set / clear color).
     """
-    if color is None:
+    if color is None or color == "":
         return None
 
     if not isinstance(color, str):

@@ -760,6 +760,61 @@ class ChangeSettingsTest(ZulipTestCase):
         result = self.client_patch("/json/settings", data)
         self.assert_json_error(result, "Either user_ids or group_ids must be provided.")
 
+    def test_change_user_color(self) -> None:
+        """Test setting a user's display color."""
+        self.login("hamlet")
+
+        # Test setting a valid 6-digit hex color
+        result = self.client_patch("/json/settings", {"color": "#ff5733"})
+        self.assert_json_success(result)
+        hamlet = self.example_user("hamlet")
+        self.assertEqual(hamlet.color, "#ff5733")
+
+        # Test setting a valid 3-digit hex color
+        result = self.client_patch("/json/settings", {"color": "#abc"})
+        self.assert_json_success(result)
+        hamlet = self.example_user("hamlet")
+        self.assertEqual(hamlet.color, "#abc")
+
+        # Test uppercase hex color
+        result = self.client_patch("/json/settings", {"color": "#AABBCC"})
+        self.assert_json_success(result)
+        hamlet = self.example_user("hamlet")
+        self.assertEqual(hamlet.color, "#AABBCC")
+
+    def test_clear_user_color(self) -> None:
+        """Test clearing a user's display color."""
+        hamlet = self.example_user("hamlet")
+        hamlet.color = "#ff5733"
+        hamlet.save()
+        self.login("hamlet")
+
+        # Test clearing color by setting to empty string
+        result = self.client_patch("/json/settings", {"color": ""})
+        self.assert_json_success(result)
+        hamlet = self.example_user("hamlet")
+        self.assertIsNone(hamlet.color)
+
+    def test_invalid_user_color(self) -> None:
+        """Test that invalid color formats are rejected."""
+        self.login("hamlet")
+
+        # Test invalid format - missing hash
+        result = self.client_patch("/json/settings", {"color": "ff5733"})
+        self.assert_json_error(result, "Invalid color format! Use hex format like #RGB or #RRGGBB.")
+
+        # Test invalid format - wrong length
+        result = self.client_patch("/json/settings", {"color": "#ff57"})
+        self.assert_json_error(result, "Invalid color format! Use hex format like #RGB or #RRGGBB.")
+
+        # Test invalid format - non-hex characters
+        result = self.client_patch("/json/settings", {"color": "#gggggg"})
+        self.assert_json_error(result, "Invalid color format! Use hex format like #RGB or #RRGGBB.")
+
+        # Test invalid format - too long
+        result = self.client_patch("/json/settings", {"color": "#ff5733aa"})
+        self.assert_json_error(result, "Invalid color format! Use hex format like #RGB or #RRGGBB.")
+
 
 class UserChangesTest(ZulipTestCase):
     def test_update_api_key(self) -> None:

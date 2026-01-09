@@ -444,6 +444,41 @@ async function test_default_language_setting(page: Page): Promise<void> {
     });
 }
 
+async function test_change_user_color(page: Page): Promise<void> {
+    // We're already on the profile section from open_settings
+    // Color inputs may render differently, so wait for element to exist in DOM
+    await page.waitForSelector("#user_color");
+
+    // Scroll the color picker into view
+    await page.evaluate(() => {
+        document.querySelector("#user_color")?.scrollIntoView({block: "center"});
+    });
+
+    // Change the color using the color picker
+    // Note: We can't fully interact with native color pickers in Puppeteer,
+    // but we can set the value and trigger change event
+    await page.evaluate(() => {
+        const colorInput = document.querySelector<HTMLInputElement>("#user_color");
+        if (colorInput) {
+            colorInput.value = "#ff5733";
+            colorInput.dispatchEvent(new Event("change", {bubbles: true}));
+        }
+    });
+
+    // Wait for the success indicator (alert-success class is added to the element itself)
+    await page.waitForSelector(".user-color-status.alert-success", {visible: true});
+
+    // Test clearing the color
+    await page.click("#clear_user_color_button");
+
+    // Wait for the success indicator after clearing
+    await page.waitForSelector(".user-color-status.alert-success", {visible: true});
+
+    // Verify the color picker was reset to default
+    const colorValue = await page.$eval("#user_color", (el) => (el as HTMLInputElement).value);
+    assert.equal(colorValue.toLowerCase(), "#3c78d8", "Color should be reset to default");
+}
+
 async function test_notifications_section(page: Page): Promise<void> {
     await page.click('[data-section="notifications"]');
     // At the beginning, "DMs, mentions, and alerts"(checkbox name=enable_sounds) audio will be on
@@ -478,6 +513,7 @@ async function settings_tests(page: Page): Promise<void> {
     await close_settings_and_date_picker(page);
     await open_settings(page);
     await test_change_full_name(page);
+    await test_change_user_color(page);
     await test_alert_words_section(page);
     await test_your_bots_section(page);
     await test_default_language_setting(page);
