@@ -1086,6 +1086,23 @@
         top: -1px;
         padding-left: 0.3em;
     }
+
+    /* Improve visibility of colored user mentions */
+    &[style*="color"] {
+        font-weight: 500;
+    }
+}
+
+/* Improve visibility of colored puppet mentions */
+.puppet-mention[style*="color"] {
+    font-weight: 500;
+}
+
+/* Improve visibility of colored group mentions */
+.user-group-mention[style*="background-color"] {
+    font-weight: 500;
+    padding: 1px 3px;
+    border-radius: 3px;
 }
 
 /* This is required to align the time-example output in the "?" menu. */

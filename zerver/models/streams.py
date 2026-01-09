@@ -511,6 +511,9 @@ class StreamPuppet(models.Model):
     name = models.CharField(max_length=MAX_NAME_LENGTH, db_index=True)
     # Avatar URL for the puppet (optional, copied from most recent message)
     avatar_url = models.URLField(max_length=500, null=True, blank=True)
+    # Optional display color for the puppet (hex format: #RGB or #RRGGBB)
+    # null = no puppet color set, falls back to sender's color
+    color = models.CharField(max_length=10, null=True, blank=True, default=None)
     # Last time this puppet was used
     last_used = models.DateTimeField(default=timezone_now)
     # User who first created/used this puppet

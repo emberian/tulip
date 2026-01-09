@@ -127,6 +127,7 @@ def send_message_backend(
     ] = None,
     puppet_display_name: str | None = None,
     puppet_avatar_url: str | None = None,
+    puppet_color: str | None = None,
 ) -> HttpResponse:
     recipient_type_name = req_type
     if recipient_type_name == "direct":
@@ -238,6 +239,7 @@ def send_message_backend(
         read_by_sender=read_by_sender,
         puppet_display_name=puppet_display_name,
         puppet_avatar_url=puppet_avatar_url,
+        puppet_color=puppet_color,
     )
     data["id"] = sent_message_result.message_id
     if sent_message_result.automatic_new_visibility_policy:

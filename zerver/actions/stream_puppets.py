@@ -9,6 +9,7 @@ def register_stream_puppet(
     puppet_name: str,
     puppet_avatar_url: str | None,
     sender: UserProfile,
+    puppet_color: str | None = None,
 ) -> StreamPuppet:
     """Register or update a puppet name in a stream.
 
@@ -20,16 +21,22 @@ def register_stream_puppet(
         name=puppet_name,
         defaults={
             "avatar_url": puppet_avatar_url,
+            "color": puppet_color,
             "last_used": timezone_now(),
             "created_by": sender,
         },
     )
     if not created:
-        # Update last_used and avatar even if puppet already exists
+        # Update last_used, avatar, and color even if puppet already exists
         puppet.last_used = timezone_now()
+        update_fields = ["last_used"]
         if puppet_avatar_url:
             puppet.avatar_url = puppet_avatar_url
-        puppet.save(update_fields=["last_used", "avatar_url"])
+            update_fields.append("avatar_url")
+        if puppet_color is not None:
+            puppet.color = puppet_color
+            update_fields.append("color")
+        puppet.save(update_fields=update_fields)
     return puppet
 
 
@@ -41,6 +48,7 @@ def get_stream_puppets(stream: Stream) -> list[dict[str, str | int | None]]:
             "id": puppet.id,
             "name": puppet.name,
             "avatar_url": puppet.avatar_url,
+            "color": puppet.color,
         }
         for puppet in puppets
     ]

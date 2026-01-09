@@ -13,6 +13,7 @@ from django.shortcuts import render
 from django.urls import reverse
 from django.utils.html import escape
 from django.utils.safestring import SafeString
+from django.utils.timezone import now as timezone_now
 from django.utils.translation import gettext as _
 from django.utils.translation import gettext_lazy
 from pydantic import BaseModel, Json, model_validator
@@ -272,6 +273,7 @@ def json_change_settings(
     | None = None,
     color_scheme: Annotated[Json[int], check_int_in_validator(UserProfile.COLOR_SCHEME_CHOICES)]
     | None = None,
+    color: str | None = None,
     default_language: str | None = None,
     demote_inactive_streams: Annotated[
         Json[int], check_int_in_validator(UserProfile.DEMOTE_STREAMS_CHOICES)
@@ -530,6 +532,37 @@ def json_change_settings(
         else:
             # Note that check_change_full_name strips the passed name automatically
             check_change_full_name(user_profile, full_name, user_profile)
+
+    if color is not None and user_profile.color != color:
+        from zerver.lib.users import check_color
+        from zerver.models.realm_audit_logs import AuditLogEventType, RealmAuditLog
+        from zerver.tornado.django_api import send_event_on_commit
+
+        validated_color = check_color(color)
+        old_color = user_profile.color
+        user_profile.color = validated_color
+        user_profile.save(update_fields=["color"])
+
+        RealmAuditLog.objects.create(
+            realm=user_profile.realm,
+            event_type=AuditLogEventType.USER_SETTING_CHANGED,
+            event_time=timezone_now(),
+            acting_user=user_profile,
+            modified_user=user_profile,
+            extra_data={
+                RealmAuditLog.OLD_VALUE: old_color,
+                RealmAuditLog.NEW_VALUE: validated_color,
+                "property": "color",
+            },
+        )
+
+        event = {
+            "type": "user_settings",
+            "op": "update",
+            "property": "color",
+            "value": validated_color,
+        }
+        send_event_on_commit(user_profile.realm, event, [user_profile.id])
 
     for k, v in request_settings.items():
         if getattr(user_profile, k) != v:

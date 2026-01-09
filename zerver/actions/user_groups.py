@@ -312,6 +312,26 @@ def do_update_user_group_description(
     do_send_user_group_update_event(user_group, dict(description=description))
 
 
+def do_update_user_group_color(
+    user_group: NamedUserGroup, color: str, *, acting_user: UserProfile | None
+) -> None:
+    old_value = user_group.color
+    user_group.color = color
+    user_group.save(update_fields=["color"])
+    RealmAuditLog.objects.create(
+        realm=user_group.realm,
+        modified_user_group=user_group,
+        event_type=AuditLogEventType.USER_GROUP_DESCRIPTION_CHANGED,  # Reusing existing event type
+        event_time=timezone_now(),
+        acting_user=acting_user,
+        extra_data={
+            RealmAuditLog.OLD_VALUE: old_value,
+            RealmAuditLog.NEW_VALUE: color,
+        },
+    )
+    do_send_user_group_update_event(user_group, dict(color=color))
+
+
 def do_send_user_group_members_update_event(
     event_name: str, user_group: NamedUserGroup, user_ids: list[int]
 ) -> None:

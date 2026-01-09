@@ -16,6 +16,22 @@
                     </div>
                 </div>
 
+                <div class="input-group inline-block grid">
+                    <label for="user_color" class="settings-field-label inline-block">{{t "Display color" }}</label>
+                    <div class="alert-notification user-color-status"></div>
+                    <div class="settings-profile-user-field-hint">{{t "Your personal display color used in mentions and messages (optional)." }}</div>
+                    <div class="color-picker-container">
+                        <input id="user_color" name="user_color" class="color-picker-input" type="color" value="{{#if current_user.color}}{{current_user.color}}{{else}}#3c78d8{{/if}}" />
+                        {{> ../components/action_button
+                          label=(t "Clear color")
+                          attention="quiet"
+                          intent="neutral"
+                          id="clear_user_color_button"
+                          custom_classes="clear-color-btn"
+                          }}
+                    </div>
+                </div>
+
                 <form class="timezone-setting-form">
                     <div class="input-group grid">
                         <label for="user_timezone_widget" class="settings-field-label inline-block">{{t "Time zone" }}</label>

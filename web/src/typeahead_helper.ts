@@ -73,6 +73,7 @@ export let render_typeahead_item = (args: {
     secondary?: string | null;
     secondary_html?: string | undefined;
     pronouns?: string | undefined;
+    user_color?: string | null;
     is_user_group?: boolean;
     stream?: StreamData;
     emoji_code?: string | undefined;
@@ -132,6 +133,7 @@ export let render_person = (person: UserPillData | UserOrMentionPillData): strin
 
     const pronouns = pronouns_list?.[0]?.value;
 
+    const user_color = person.user.color ?? null;
     const typeahead_arguments = {
         primary: person.user.full_name,
         img_src: avatar_url,
@@ -143,6 +145,7 @@ export let render_person = (person: UserPillData | UserOrMentionPillData): strin
             person.user.user_id,
         ),
         pronouns,
+        user_color,
         secondary: person.user.delivery_email,
     };
 

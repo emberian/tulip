@@ -59,6 +59,7 @@ export type MarkdownHelpers = {
     is_valid_full_name_and_user_id: (full_name: string, user_id: number) => boolean;
     my_user_id: () => number;
     is_valid_user_id: (user_id: number) => boolean;
+    get_user_color_from_user_id: (user_id: number) => string | null;
 
     // user groups
     get_user_group_from_name: (name: string) => {id: number; name: string; color: string} | undefined;
@@ -84,6 +85,10 @@ export type MarkdownHelpers = {
     // puppets - optional, for puppet mention support
     is_puppet_mention?: (name: string, stream_id: number | undefined) => boolean;
     current_stream_id?: () => number | undefined;
+    get_puppet_from_name?: (name: string, stream_id: number | undefined) => {
+        name: string;
+        color: string | null;
+    } | undefined;
 };
 
 export function translate_emoticons_to_names({
@@ -292,7 +297,9 @@ function parse_with_options(
                 ) {
                     const display_text = silently ? full_name : "@" + full_name;
                     const classes = "puppet-mention" + (silently ? " silent" : "");
-                    return `<span class="${classes}" data-puppet-name="${_.escape(full_name)}">${_.escape(display_text)}</span>`;
+                    const puppet = helper_config.get_puppet_from_name?.(full_name, stream_id);
+                    const style = puppet?.color ? ` style="color: ${_.escape(puppet.color)};"` : "";
+                    return `<span class="${classes}" data-puppet-name="${_.escape(full_name)}"${style}>${_.escape(display_text)}</span>`;
                 }
                 // This is nothing to be concerned about--the users
                 // are allowed to hand-type mentions and they may
@@ -320,9 +327,11 @@ function parse_with_options(
                 display_text = "@" + display_text;
             }
 
+            const user_color = helper_config.get_user_color_from_user_id(user_id);
+            const style = user_color ? ` style="color: ${_.escape(user_color)};"` : "";
             return `<span class="${classes}" data-user-id="${_.escape(
                 user_id.toString(),
-            )}">${_.escape(display_text)}</span>`;
+            )}"${style}>${_.escape(display_text)}</span>`;
         },
         groupMentionHandler(name: string, silently: boolean): string | undefined {
             const group = helper_config.get_user_group_from_name(name);

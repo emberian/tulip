@@ -220,6 +220,7 @@ export const user_schema = z.intersection(
         timezone: z.optional(z.string()),
         avatar_url: z.nullish(z.string()),
         avatar_version: z.number(),
+        color: z.nullable(z.string()),
         profile_data: z.optional(z.record(z.coerce.number<string>(), profile_datum_schema)),
         // used for fake user objects.
         is_missing_server_data: z.optional(z.boolean()),

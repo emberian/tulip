@@ -55,6 +55,7 @@ export const user_update_schema = z.intersection(
         z.object({role: z.number()}),
         z.object({email: z.string(), timezone: z.string()}),
         z.object({is_active: z.boolean()}),
+        z.object({color: z.nullable(z.string())}),
     ]),
 );
 
@@ -221,6 +222,14 @@ export const update_person = function update(event: UserUpdate): void {
         assert(user.is_bot);
         user.bot_owner_id = event.bot_owner_id;
         user_profile.update_profile_modal_ui(user, event);
+    }
+
+    if ("color" in event) {
+        user.color = event.color;
+        // Trigger UI updates for mentions, sender names, and user lists
+        message_live_update.update_user_color(event.user_id, event.color);
+        activity_ui.redraw();
+        buddy_list.insert_or_move([event.user_id]);
     }
 
     if ("is_active" in event) {

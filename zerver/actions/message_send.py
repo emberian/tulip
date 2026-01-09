@@ -631,6 +631,7 @@ def build_message_send_dict(
     recipients_for_user_creation_events: dict[UserProfile, set[int]] | None = None,
     acting_user: UserProfile | None = None,
     no_previews: bool = False,
+    puppet_color: str | None = None,
 ) -> SendMessageRequest:
     """Returns a dictionary that can be passed into do_send_messages.  In
     production, this is always called by check_message, but some
@@ -763,6 +764,7 @@ def build_message_send_dict(
         disable_external_notifications=disable_external_notifications,
         topic_participant_user_ids=topic_participant_user_ids,
         recipients_for_user_creation_events=recipients_for_user_creation_events,
+        puppet_color=puppet_color,
     )
 
     return message_send_dict
@@ -964,6 +966,7 @@ def do_send_messages(
                 puppet_name=send_request.message.puppet_display_name,
                 puppet_avatar_url=send_request.message.puppet_avatar_url,
                 sender=send_request.message.sender,
+                puppet_color=send_request.puppet_color,
             )
 
     ums: list[UserMessageLite] = []
@@ -1465,6 +1468,7 @@ def check_send_message(
     read_by_sender: bool = False,
     puppet_display_name: str | None = None,
     puppet_avatar_url: str | None = None,
+    puppet_color: str | None = None,
 ) -> SentMessageResult:
     addressee = Addressee.legacy_build(sender, recipient_type_name, message_to, topic_name)
     message_request = check_message(
@@ -1482,6 +1486,7 @@ def check_send_message(
         skip_stream_access_check=skip_stream_access_check,
         puppet_display_name=puppet_display_name,
         puppet_avatar_url=puppet_avatar_url,
+        puppet_color=puppet_color,
     )
     return do_send_messages(
         [message_request],
@@ -1762,6 +1767,7 @@ def check_message(
     acting_user: UserProfile | None = None,
     puppet_display_name: str | None = None,
     puppet_avatar_url: str | None = None,
+    puppet_color: str | None = None,
 ) -> SendMessageRequest:
     """See
     https://zulip.readthedocs.io/en/latest/subsystems/sending-messages.html
@@ -1932,6 +1938,7 @@ def check_message(
         recipients_for_user_creation_events=recipients_for_user_creation_events,
         acting_user=acting_user,
         no_previews=no_previews,
+        puppet_color=puppet_color,
     )
 
     if (

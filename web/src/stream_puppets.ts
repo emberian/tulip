@@ -7,6 +7,7 @@ export type StreamPuppet = {
     id: number;
     name: string;
     avatar_url: string | null;
+    color: string | null;
 };
 
 const stream_puppets_response_schema = z.object({
@@ -15,6 +16,7 @@ const stream_puppets_response_schema = z.object({
             id: z.number(),
             name: z.string(),
             avatar_url: z.nullable(z.string()),
+            color: z.nullable(z.string()),
         }),
     ),
 });

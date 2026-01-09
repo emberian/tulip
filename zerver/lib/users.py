@@ -36,7 +36,11 @@ from zerver.models import (
     UserMessage,
     UserProfile,
 )
-from zerver.models.groups import SystemGroups, get_realm_system_groups_name_dict
+from zerver.models.groups import (
+    NamedUserGroup,
+    SystemGroups,
+    get_realm_system_groups_name_dict,
+)
 from zerver.models.realms import get_fake_email_domain, require_unique_names
 from zerver.models.users import (
     active_non_guest_user_ids,
@@ -91,6 +95,25 @@ def check_full_name(
             raise JsonableError(_("Unique names required in this organization."))
 
     return full_name
+
+
+def check_color(color: str | None) -> str | None:
+    """Validate color format (hex: #RGB or #RRGGBB).
+
+    Returns the color if valid, raises JsonableError if invalid.
+    None is valid (means no personal color set).
+    """
+    if color is None:
+        return None
+
+    if not isinstance(color, str):
+        raise JsonableError(_("Color must be a string!"))
+
+    # Check hex format: #RGB or #RRGGBB
+    if not re.match(r'^#[0-9A-Fa-f]{3}$|^#[0-9A-Fa-f]{6}$', color):
+        raise JsonableError(_("Invalid color format! Use hex format like #RGB or #RRGGBB."))
+
+    return color
 
 
 # NOTE: We don't try to absolutely prevent 2 bots from having the same
@@ -598,6 +621,7 @@ class APIUserDict(TypedDict):
     is_system_bot: NotRequired[bool]
     max_message_id: NotRequired[int]
     is_imported_stub: bool
+    color: str | None
 
 
 def format_user_row(
@@ -643,6 +667,7 @@ def format_user_row(
         else row["date_joined"].isoformat(timespec="minutes"),
         delivery_email=delivery_email,
         is_imported_stub=row["is_imported_stub"],
+        color=row["color"],
     )
 
     if acting_user is None:
@@ -854,6 +879,67 @@ def get_inaccessible_user_ids(
     return inaccessible_user_ids
 
 
+def get_user_effective_color(user_profile: UserProfile) -> str | None:
+    """Compute the effective color for a user based on priority:
+    1. Personal color (if set)
+    2. Highest-priority user group color
+    3. None (use default)
+
+    Group priority order (highest to lowest):
+    - Owners (system group)
+    - Administrators (system group)
+    - Moderators (system group)
+    - Members (system group)
+    - Custom groups (ordered by creation date, newest first)
+    """
+    # If user has personal color, return it immediately
+    if user_profile.color:
+        return user_profile.color
+
+    # Map user roles to system group names in priority order
+    role_to_system_group = {
+        UserProfile.ROLE_REALM_OWNER: SystemGroups.OWNERS,
+        UserProfile.ROLE_REALM_ADMINISTRATOR: SystemGroups.ADMINISTRATORS,
+        UserProfile.ROLE_MODERATOR: SystemGroups.MODERATORS,
+        UserProfile.ROLE_MEMBER: SystemGroups.MEMBERS,
+        UserProfile.ROLE_GUEST: SystemGroups.EVERYONE,
+    }
+
+    # Check system group color based on user's role
+    system_group_name = role_to_system_group.get(user_profile.role)
+    if system_group_name:
+        try:
+            system_group = NamedUserGroup.objects.get(
+                realm=user_profile.realm,
+                name=system_group_name,
+                is_system_group=True,
+            )
+            if system_group.color and system_group.color != "#76ce90":  # Not default
+                return system_group.color
+        except NamedUserGroup.DoesNotExist:
+            pass
+
+    # Check custom groups the user is a member of
+    # Order by date_created DESC (newest first)
+    custom_groups = (
+        NamedUserGroup.objects.filter(
+            realm=user_profile.realm,
+            is_system_group=False,
+            direct_members=user_profile,
+        )
+        .exclude(color__isnull=True)
+        .exclude(color="")
+        .exclude(color="#76ce90")  # Exclude default color
+        .order_by("-date_created")
+    )
+
+    first_group = custom_groups.first()
+    if first_group:
+        return first_group.color
+
+    return None
+
+
 def get_user_ids_who_can_access_user(target_user: UserProfile) -> list[int]:
     # We assume that caller only needs active users here, since
     # this function is used to get users to send events and to
@@ -1014,6 +1100,7 @@ def user_profile_to_user_row(user_profile: UserProfile) -> RawUserDict:
         long_term_idle=user_profile.long_term_idle,
         email_address_visibility=user_profile.email_address_visibility,
         is_imported_stub=user_profile.is_imported_stub,
+        color=user_profile.color,
     )
 
 

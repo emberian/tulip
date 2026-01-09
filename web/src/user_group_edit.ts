@@ -2009,6 +2009,7 @@ export function initialize(): void {
             const template_data = {
                 group_name: user_groups.get_display_group_name(user_group.name),
                 group_description: user_group.description,
+                group_color: user_group.color,
                 max_user_group_name_length: user_groups.max_user_group_name_length,
                 allow_editing_description: true,
             };
@@ -2026,6 +2027,10 @@ export function initialize(): void {
                     $("#change_group_info_modal .dialog_submit_button")
                         .addClass("save-button")
                         .attr("data-group-id", user_group_id);
+                    $("#change_group_info_modal .clear-group-color-btn").on("click", (e) => {
+                        e.preventDefault();
+                        $("#change_user_group_color").val("#76ce90");
+                    });
                 },
                 update_submit_disabled_state_on_change: true,
             });
@@ -2177,8 +2182,10 @@ export function initialize(): void {
         const url = `/json/user_groups/${group.id}`;
         let name;
         let description;
+        let color;
         const new_name = $<HTMLInputElement>("#change_user_group_name").val()!.trim();
         const new_description = $<HTMLInputElement>("#change_user_group_description").val()!.trim();
+        const new_color = $<HTMLInputElement>("#change_user_group_color").val();
 
         if (new_name !== group.name) {
             name = new_name;
@@ -2186,9 +2193,14 @@ export function initialize(): void {
         if (new_description !== group.description) {
             description = new_description;
         }
+        if (new_color !== group.color) {
+            // If the color is the default, treat it as clearing the color
+            color = new_color === "#76ce90" ? null : new_color;
+        }
         const data = {
             name,
             description,
+            color,
         };
         dialog_widget.submit_api_request(channel.patch, url, data);
     }

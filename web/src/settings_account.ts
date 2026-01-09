@@ -644,6 +644,39 @@ export function set_up(): void {
         );
     });
 
+    $("#user_color").on("change", (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        const color = $("#user_color").val();
+        const data = {
+            color: color ? String(color) : null,
+        };
+
+        settings_ui.do_settings_change(
+            channel.patch,
+            "/json/settings",
+            data,
+            $(".user-color-status").expectOne(),
+        );
+    });
+
+    $("#clear_user_color_button").on("click", (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        const data = {
+            color: null,
+        };
+
+        settings_ui.do_settings_change(
+            channel.patch,
+            "/json/settings",
+            data,
+            $(".user-color-status").expectOne(),
+        );
+        // Reset the color picker to a default value
+        $("#user_color").val("#3c78d8");
+    });
+
     function do_change_email(): void {
         const $change_email_error = $("#change_email_modal").find("#dialog_error");
         const data = {

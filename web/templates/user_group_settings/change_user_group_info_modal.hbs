@@ -13,3 +13,13 @@
     <textarea id="change_user_group_description" class="modal-textarea" name="user_group_description">{{ group_description }}</textarea>
 </div>
 {{/if}}
+
+<div>
+    <label for="change_user_group_color" class="modal-field-label">
+        {{t 'Group color' }}
+    </label>
+    <div class="color-picker-container">
+        <input type="color" id="change_user_group_color" class="color-picker-input" name="user_group_color" value="{{#if group_color}}{{group_color}}{{else}}#76ce90{{/if}}" />
+        <button type="button" class="clear-group-color-btn button white rounded">{{t "Clear color"}}</button>
+    </div>
+</div>

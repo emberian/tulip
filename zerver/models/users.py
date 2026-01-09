@@ -511,6 +511,10 @@ class UserProfile(AbstractBaseUser, PermissionsMixin, UserBaseSettings):
     # graduation year, etc.
     full_name = models.CharField(max_length=MAX_NAME_LENGTH)
 
+    # Optional display color for the user (hex format: #RGB or #RRGGBB)
+    # null = no personal color set, inherits from user groups
+    color = models.CharField(max_length=10, null=True, blank=True, default=None)
+
     date_joined = models.DateTimeField(default=timezone_now)
 
     # Terms of Service version number that this user has accepted. We

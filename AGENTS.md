@@ -113,3 +113,4 @@ Adding Discord-style interactive bot components. See `/Users/ember/.claude/plans
 - `zerver/views/bot_interactions.py` - API endpoint for widget interactions
 - `zerver/actions/bot_interactions.py` - Business logic for routing interactions to bots
 - `zerver/worker/bot_interactions.py` - Queue worker to deliver interactions to bots
+Always use vagrant ssh -c to run stuff inside the container when you need to run the code

@@ -1023,7 +1023,7 @@ def bulk_create_system_user_groups(groups: list[dict[str, str]], realm: Realm) -
         user_group_ids = [id for (id,) in cursor.fetchall()]
 
     rows = [
-        SQL("({},{},{},{},{},{},{},{},{},{},{},{})").format(
+        SQL("({},{},{},{},{},{},{},{},{},{},{},{},{})").format(
             Literal(user_group_ids[idx]),
             Literal(realm.id),
             Literal(group["name"]),
@@ -1036,12 +1036,13 @@ def bulk_create_system_user_groups(groups: list[dict[str, str]], realm: Realm) -
             Literal(initial_group_setting_value),
             Literal(initial_group_setting_value),
             Literal(False),
+            Literal("#76ce90"),  # Default color for system groups
         )
         for idx, group in enumerate(groups)
     ]
     query = SQL(
         """
-        INSERT INTO zerver_namedusergroup (usergroup_ptr_id, realm_id, name, description, is_system_group, can_add_members_group_id, can_join_group_id, can_leave_group_id, can_manage_group_id, can_mention_group_id, can_remove_members_group_id, deactivated)
+        INSERT INTO zerver_namedusergroup (usergroup_ptr_id, realm_id, name, description, is_system_group, can_add_members_group_id, can_join_group_id, can_leave_group_id, can_manage_group_id, can_mention_group_id, can_remove_members_group_id, deactivated, color)
         VALUES {rows}
         """
     ).format(rows=SQL(", ").join(rows))

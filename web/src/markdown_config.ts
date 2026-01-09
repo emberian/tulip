@@ -7,6 +7,7 @@ import * as people from "./people.ts";
 import * as stream_data from "./stream_data.ts";
 import * as stream_puppets from "./stream_puppets.ts";
 import type {Stream} from "./sub_store.ts";
+import * as user_colors from "./user_colors.ts";
 import * as user_groups from "./user_groups.ts";
 import {user_settings} from "./user_settings.ts";
 
@@ -72,6 +73,7 @@ export const get_helpers = (): MarkdownHelpers => ({
     is_valid_full_name_and_user_id: people.is_valid_full_name_and_user_id,
     my_user_id: people.my_current_user_id,
     is_valid_user_id: people.is_known_user_id,
+    get_user_color_from_user_id: user_colors.get_user_color,
 
     // user groups
     get_user_group_from_name: (name) => user_group(user_groups.get_user_group_from_name(name)),
@@ -107,4 +109,21 @@ export const get_helpers = (): MarkdownHelpers => ({
         return puppets.some((p) => p.name.toLowerCase() === name.toLowerCase());
     },
     current_stream_id: () => compose_state.stream_id(),
+    get_puppet_from_name: (
+        name: string,
+        stream_id: number | undefined,
+    ): {name: string; color: string | null} | undefined => {
+        if (stream_id === undefined) {
+            return undefined;
+        }
+        const puppets = stream_puppets.get_puppets_for_stream(stream_id);
+        const puppet = puppets.find((p) => p.name.toLowerCase() === name.toLowerCase());
+        if (puppet) {
+            return {
+                name: puppet.name,
+                color: puppet.color,
+            };
+        }
+        return undefined;
+    },
 });
