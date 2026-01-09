@@ -519,6 +519,7 @@ class StreamPuppet(models.Model):
     class Meta:
         unique_together = ("stream", "name")
 
+    @override
     def __str__(self) -> str:
         return f"{self.name} in {self.stream.name}"
 

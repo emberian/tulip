@@ -95,14 +95,14 @@ class BotPresenceTests(ZulipTestCase):
         self.assertEqual(len(result), 2)
 
         self.assertFalse(result[bot1.id]["is_connected"])
-        self.assertAlmostEqual(
-            result[bot1.id]["last_connected_time"], time1.timestamp(), delta=1.0
-        )
+        bot1_last_connected = result[bot1.id]["last_connected_time"]
+        assert isinstance(bot1_last_connected, float)
+        self.assertAlmostEqual(bot1_last_connected, time1.timestamp(), delta=1.0)
 
         self.assertTrue(result[bot2.id]["is_connected"])
-        self.assertAlmostEqual(
-            result[bot2.id]["last_connected_time"], time2.timestamp(), delta=1.0
-        )
+        bot2_last_connected = result[bot2.id]["last_connected_time"]
+        assert isinstance(bot2_last_connected, float)
+        self.assertAlmostEqual(bot2_last_connected, time2.timestamp(), delta=1.0)
 
     def test_get_bot_presence_dict_empty_realm(self) -> None:
         """Test getting bot presences when none exist."""

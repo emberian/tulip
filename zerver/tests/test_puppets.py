@@ -266,6 +266,7 @@ class PuppetMentionTest(ZulipTestCase):
         self.assert_json_success(result)
 
         message = Message.objects.latest("id")
+        assert message.rendered_content is not None
         self.assertIn('class="puppet-mention"', message.rendered_content)
         self.assertIn('data-puppet-name="Gandalf"', message.rendered_content)
 
@@ -288,6 +289,7 @@ class PuppetMentionTest(ZulipTestCase):
 
         message = Message.objects.latest("id")
         # Should not have puppet-mention class
+        assert message.rendered_content is not None
         self.assertNotIn("puppet-mention", message.rendered_content)
 
     def test_silent_puppet_mention(self) -> None:
@@ -316,4 +318,5 @@ class PuppetMentionTest(ZulipTestCase):
         self.assert_json_success(result)
 
         message = Message.objects.latest("id")
+        assert message.rendered_content is not None
         self.assertIn('class="puppet-mention silent"', message.rendered_content)

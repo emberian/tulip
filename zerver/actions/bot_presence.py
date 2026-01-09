@@ -66,7 +66,7 @@ def do_update_bot_presence(
 
     # Get the timestamp to send in the event
     last_connected_timestamp = (
-        presence.last_connected_time.timestamp() if presence.last_connected_time else None
+        presence.last_connected_time.timestamp() if presence.last_connected_time is not None else None
     )
 
     # Broadcast the presence change
@@ -88,7 +88,7 @@ def get_bot_presence_dict_for_realm(realm_id: int) -> dict[int, dict[str, bool |
             "is_connected": presence.is_connected,
             "last_connected_time": (
                 presence.last_connected_time.timestamp()
-                if presence.last_connected_time
+                if presence.last_connected_time is not None
                 else None
             ),
         }

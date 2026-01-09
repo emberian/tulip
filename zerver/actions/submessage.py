@@ -105,8 +105,8 @@ def do_add_submessage(
 
     if visible_user_ids is not None:
         # Filter to only users who can see the message AND are in the visibility list
-        target_user_ids = list(set(all_recipient_ids) & set(visible_user_ids))
+        target_user_ids = list(all_recipient_ids & set(visible_user_ids))
     else:
-        target_user_ids = all_recipient_ids
+        target_user_ids = list(all_recipient_ids)
 
     send_event_on_commit(realm, event, target_user_ids)
