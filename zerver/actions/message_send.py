@@ -1563,6 +1563,7 @@ def check_send_message(
     whisper_to_user_ids: list[int] | None = None,
     whisper_to_group_ids: list[int] | None = None,
     whisper_to_puppet_ids: list[int] | None = None,
+    whisper_to_persona_ids: list[int] | None = None,
 ) -> SentMessageResult:
     addressee = Addressee.legacy_build(sender, recipient_type_name, message_to, topic_name)
     message_request = check_message(
@@ -1585,6 +1586,7 @@ def check_send_message(
         whisper_to_user_ids=whisper_to_user_ids,
         whisper_to_group_ids=whisper_to_group_ids,
         whisper_to_puppet_ids=whisper_to_puppet_ids,
+        whisper_to_persona_ids=whisper_to_persona_ids,
     )
     return do_send_messages(
         [message_request],

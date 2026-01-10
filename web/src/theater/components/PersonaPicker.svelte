@@ -1,4 +1,5 @@
 <script lang="ts">
+    import {tick} from "svelte";
     import {personas, type Persona} from "../stores/personas";
 
     interface Props {
@@ -10,6 +11,8 @@
 
     let isOpen = $state(false);
     let dropdownRef: HTMLElement;
+    let listboxRef: HTMLElement;
+    let toggleRef: HTMLElement;
     let focusedIndex = $state(-1);
 
     let userPersonas = $derived($personas);
@@ -21,19 +24,23 @@
         selectedPersonaId ? userPersonas.find((p) => p.id === selectedPersonaId) : null,
     );
 
-    function toggleDropdown() {
+    async function toggleDropdown() {
         isOpen = !isOpen;
         if (isOpen) {
             // Focus the currently selected option
             focusedIndex = allOptions.findIndex((opt) =>
                 opt === null ? selectedPersonaId === null : opt.id === selectedPersonaId,
             );
+            // Focus listbox after it renders
+            await tick();
+            listboxRef?.focus();
         }
     }
 
     function selectPersona(persona: Persona | null) {
         onSelect(persona?.id ?? null);
         isOpen = false;
+        toggleRef?.focus();
     }
 
     function handleClickOutside(event: MouseEvent) {
@@ -73,6 +80,7 @@
             case "Escape":
                 event.preventDefault();
                 isOpen = false;
+                toggleRef?.focus();
                 break;
             case "Home":
                 event.preventDefault();
@@ -103,6 +111,7 @@
 
 <div class="persona-picker" bind:this={dropdownRef}>
     <button
+        bind:this={toggleRef}
         class="picker-toggle"
         onclick={toggleDropdown}
         onkeydown={handleKeydown}
@@ -141,6 +150,7 @@
     {#if isOpen}
         <!-- svelte-ignore a11y_no_noninteractive_tabindex -->
         <ul
+            bind:this={listboxRef}
             class="picker-dropdown"
             role="listbox"
             id="persona-listbox"

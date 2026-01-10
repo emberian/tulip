@@ -6,7 +6,13 @@ This document provides a complete reference for all API endpoints and parameters
 
 1. [Messages API](#messages-api)
    - [Send Message](#send-message)
-2. [Bot Commands API](#bot-commands-api)
+2. [Personas API](#personas-api)
+   - [List Personas](#list-personas)
+   - [Create Persona](#create-persona)
+   - [Update Persona](#update-persona)
+   - [Delete Persona](#delete-persona)
+   - [Get Realm Personas](#get-realm-personas)
+3. [Bot Commands API](#bot-commands-api)
    - [List Commands](#list-commands)
    - [Register Command](#register-command)
    - [Delete Command](#delete-command)
@@ -44,9 +50,11 @@ Extended with new parameters for whispers and puppeting.
 |-----------|------|----------|-------------|
 | `whisper_to_user_ids` | array[int] | No | User IDs who can see this whisper (channel messages only) |
 | `whisper_to_group_ids` | array[int] | No | Group IDs whose members can see this whisper |
+| `whisper_to_puppet_ids` | array[int] | No | Puppet IDs whose handlers can see this whisper |
 | `puppet_display_name` | string | No | Display name for puppet message (max 100 chars) |
 | `puppet_avatar_url` | string | No | Avatar URL for puppet message |
 | `puppet_color` | string | No | Hex color for puppet name (#RGB or #RRGGBB) |
+| `persona_id` | int | No | ID of the persona to send message as |
 | `widget_content` | string (JSON) | No | Widget definition for interactive messages |
 
 #### Whisper Example
@@ -111,11 +119,187 @@ Messages may include these new fields:
   "content": "...",
   "whisper_recipients": {
     "user_ids": [10, 11],
-    "group_ids": [20]
+    "group_ids": [20],
+    "puppet_ids": [42]
   },
   "puppet_display_name": "Mysterious NPC",
   "puppet_avatar_url": "https://example.com/npc.png",
-  "puppet_color": "#8e44ad"
+  "puppet_color": "#8e44ad",
+  "persona_id": 42,
+  "persona_display_name": "Gandalf",
+  "persona_avatar_url": "https://example.com/gandalf.png",
+  "persona_color": "#808080"
+}
+```
+
+---
+
+## Personas API
+
+Personas are user-owned character identities. Unlike bot-controlled puppets, personas are portable and can be used anywhere.
+
+### List Personas
+
+**GET** `/json/users/me/personas`
+
+List all active personas for the current user.
+
+#### Response
+
+```json
+{
+  "result": "success",
+  "personas": [
+    {
+      "id": 42,
+      "name": "Gandalf",
+      "avatar_url": "https://example.com/gandalf.png",
+      "color": "#808080",
+      "bio": "A wizard is never late",
+      "is_active": true,
+      "date_created": 1704793200
+    }
+  ]
+}
+```
+
+---
+
+### Create Persona
+
+**POST** `/json/users/me/personas`
+
+Create a new persona.
+
+#### Parameters
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `name` | string | Yes | Persona name (1-100 chars) |
+| `avatar_url` | string | No | Avatar image URL (max 500 chars) |
+| `color` | string | No | Hex color (#RGB or #RRGGBB) |
+| `bio` | string | No | Short bio (max 500 chars) |
+
+#### Example
+
+```bash
+curl -X POST https://tulip.example.com/json/users/me/personas \
+  -u user@example.com:API_KEY \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "Gandalf",
+    "avatar_url": "https://example.com/gandalf.png",
+    "color": "#808080",
+    "bio": "A wizard is never late"
+  }'
+```
+
+#### Response
+
+```json
+{
+  "result": "success",
+  "persona": {
+    "id": 42,
+    "name": "Gandalf",
+    "avatar_url": "https://example.com/gandalf.png",
+    "color": "#808080",
+    "bio": "A wizard is never late",
+    "is_active": true,
+    "date_created": 1704793200
+  }
+}
+```
+
+#### Errors
+
+| Error | Description |
+|-------|-------------|
+| 400 | "You have reached the maximum number of personas (20)." |
+| 400 | "You already have a persona with this name." |
+
+---
+
+### Update Persona
+
+**PATCH** `/json/users/me/personas/{persona_id}`
+
+Update an existing persona.
+
+#### Parameters
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `name` | string | No | New persona name |
+| `avatar_url` | string | No | New avatar URL (empty string to clear) |
+| `color` | string | No | New hex color (empty string to clear) |
+| `bio` | string | No | New bio |
+
+#### Example
+
+```bash
+curl -X PATCH https://tulip.example.com/json/users/me/personas/42 \
+  -u user@example.com:API_KEY \
+  -H "Content-Type: application/json" \
+  -d '{"bio": "A wizard is never late, nor is he early"}'
+```
+
+#### Response
+
+```json
+{
+  "result": "success",
+  "persona": {
+    "id": 42,
+    "name": "Gandalf",
+    "avatar_url": "https://example.com/gandalf.png",
+    "color": "#808080",
+    "bio": "A wizard is never late, nor is he early",
+    "is_active": true,
+    "date_created": 1704793200
+  }
+}
+```
+
+---
+
+### Delete Persona
+
+**DELETE** `/json/users/me/personas/{persona_id}`
+
+Soft-delete a persona (marks as inactive). Personas are soft-deleted to preserve message history.
+
+#### Response
+
+```json
+{
+  "result": "success"
+}
+```
+
+---
+
+### Get Realm Personas
+
+**GET** `/json/realm/personas`
+
+Get all active personas in the realm for @-mention typeahead.
+
+#### Response
+
+```json
+{
+  "result": "success",
+  "personas": [
+    {
+      "id": 42,
+      "name": "Gandalf",
+      "avatar_url": "https://example.com/gandalf.png",
+      "color": "#808080",
+      "user_id": 123,
+      "user_full_name": "Alice"
+    }
+  ]
 }
 ```
 
@@ -687,6 +871,49 @@ Sent when a group's color changes.
   "data": {
     "color": "#3498db"
   }
+}
+```
+
+### user_persona
+
+Sent when a user's persona is added, updated, or removed. Only delivered to the persona's owner.
+
+```json
+// Persona added
+{
+  "type": "user_persona",
+  "op": "add",
+  "persona": {
+    "id": 42,
+    "name": "Gandalf",
+    "avatar_url": "https://example.com/gandalf.png",
+    "color": "#808080",
+    "bio": "A wizard is never late",
+    "is_active": true,
+    "date_created": 1704793200
+  }
+}
+
+// Persona updated
+{
+  "type": "user_persona",
+  "op": "update",
+  "persona": {
+    "id": 42,
+    "name": "Gandalf",
+    "avatar_url": "https://example.com/gandalf.png",
+    "color": "#808080",
+    "bio": "A wizard is never late, nor is he early",
+    "is_active": true,
+    "date_created": 1704793200
+  }
+}
+
+// Persona removed
+{
+  "type": "user_persona",
+  "op": "remove",
+  "persona_id": 42
 }
 ```
 

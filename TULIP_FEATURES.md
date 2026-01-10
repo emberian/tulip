@@ -10,6 +10,7 @@ This document describes the features unique to the Tulip fork, covering APIs, UI
 4. [Bot Commands and Autocomplete](#bot-commands-and-autocomplete)
 5. [Bot Interactions](#bot-interactions)
 6. [Puppeting](#puppeting)
+7. [Personas](#personas)
 
 ---
 
@@ -35,6 +36,7 @@ New parameters for channel messages:
 |-----------|------|-------------|
 | `whisper_to_user_ids` | array[int] | User IDs who can see the whisper (plus sender) |
 | `whisper_to_group_ids` | array[int] | Group IDs whose members can see the whisper |
+| `whisper_to_puppet_ids` | array[int] | Puppet IDs whose handlers can see the whisper |
 
 **Example:**
 
@@ -64,11 +66,26 @@ Messages include a `whisper_recipients` field when whispered:
 }
 ```
 
+### Whispering to Puppets
+
+Whispers can target puppets in addition to users and groups. When a puppet is whispered to, the message is delivered to the bot that has claimed the puppet's handler.
+
+```bash
+curl -X POST https://tulip.example.com/api/v1/messages \
+  -u user@example.com:API_KEY \
+  -d 'type=stream' \
+  -d 'to=game-chat' \
+  -d 'topic=Adventure' \
+  -d 'content=Psst, Gandalf, I have the ring' \
+  -d 'whisper_to_puppet_ids=[42]'
+```
+
 ### Notes
 
 - Whispers only work in channel messages, not direct messages
 - Group membership is evaluated dynamically - adding a user to a whispered group grants access to past whispers
 - The sender always has access to their own whispers
+- Puppet whispers require the puppet to exist in the target channel and have an active handler
 
 ---
 
@@ -400,6 +417,147 @@ In channels with puppet mode enabled, typing `@` shows puppets in the mention ty
 
 ---
 
+## Personas
+
+Personas are user-owned character identities for roleplay and other creative uses. Unlike bot-controlled puppets (which are stream-scoped), personas are personal and portable - they belong to a user and can be used in any channel.
+
+### Key Differences from Puppets
+
+| Feature | Personas | Puppets |
+|---------|----------|---------|
+| Ownership | Belongs to a user | Controlled by a bot |
+| Scope | Can be used anywhere | Scoped to a single channel |
+| Creation | Created by the user | Created by bot messages |
+| Identity | Represents the user | Represents an external identity |
+
+### User Experience
+
+- Access persona settings via Settings > My Characters
+- Create up to 20 personas per account
+- Each persona has a name, optional avatar, optional color, and optional bio
+- In the compose box, click the persona selector to choose which identity to send as
+- Messages sent as a persona display the persona's name, avatar, and color
+- Hovering over a persona message reveals the actual sender
+
+### Mentioning Personas
+
+Personas can be @-mentioned like users. When a persona is mentioned, the persona's owner receives a notification.
+
+```
+Hey @Gandalf, what do you think about this quest?
+```
+
+The mention renders with special styling and notifies the user who owns the "Gandalf" persona.
+
+### API: Managing Personas
+
+**GET** `/json/users/me/personas`
+
+List all active personas for the current user.
+
+**POST** `/json/users/me/personas`
+
+Create a new persona.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `name` | string | Yes | Persona name (max 100 chars) |
+| `avatar_url` | string | No | Avatar image URL |
+| `color` | string | No | Hex color (#RGB or #RRGGBB) |
+| `bio` | string | No | Short bio (max 500 chars) |
+
+**PATCH** `/json/users/me/personas/{persona_id}`
+
+Update an existing persona.
+
+**DELETE** `/json/users/me/personas/{persona_id}`
+
+Soft-delete a persona (marks as inactive).
+
+### API: Sending as a Persona
+
+**POST** `/api/v1/messages`
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `persona_id` | int | ID of the persona to send as |
+
+**Example:**
+
+```bash
+curl -X POST https://tulip.example.com/api/v1/messages \
+  -u user@example.com:API_KEY \
+  -d 'type=stream' \
+  -d 'to=roleplay' \
+  -d 'topic=Adventure' \
+  -d 'content=You shall not pass!' \
+  -d 'persona_id=42'
+```
+
+### API: Realm Personas (for Typeahead)
+
+**GET** `/json/realm/personas`
+
+Get all active personas in the realm for @-mention typeahead.
+
+### Message Object
+
+Messages sent with a persona include these fields:
+
+```json
+{
+  "id": 12345,
+  "content": "You shall not pass!",
+  "persona_id": 42,
+  "persona_display_name": "Gandalf",
+  "persona_avatar_url": "https://example.com/gandalf.png",
+  "persona_color": "#808080"
+}
+```
+
+### Events
+
+**user_persona** - Sent when a user's persona is added, updated, or removed.
+
+```json
+// Persona added
+{
+  "type": "user_persona",
+  "op": "add",
+  "persona": {
+    "id": 42,
+    "name": "Gandalf",
+    "avatar_url": "https://example.com/gandalf.png",
+    "color": "#808080",
+    "bio": "A wizard is never late",
+    "is_active": true,
+    "date_created": 1704793200
+  }
+}
+
+// Persona updated
+{
+  "type": "user_persona",
+  "op": "update",
+  "persona": {...}
+}
+
+// Persona removed
+{
+  "type": "user_persona",
+  "op": "remove",
+  "persona_id": 42
+}
+```
+
+### Restrictions
+
+- Maximum 20 personas per user
+- Persona names must be unique per user
+- Personas are soft-deleted to preserve message history
+
+---
+
 ## Summary of New API Parameters
 
 ### Message Sending (`POST /api/v1/messages`)
@@ -408,9 +566,11 @@ In channels with puppet mode enabled, typing `@` shows puppets in the mention ty
 |-----------|------|-------------|
 | `whisper_to_user_ids` | array[int] | Whisper recipients (user IDs) |
 | `whisper_to_group_ids` | array[int] | Whisper recipients (group IDs) |
+| `whisper_to_puppet_ids` | array[int] | Whisper recipients (puppet IDs) |
 | `puppet_display_name` | string | Puppet display name |
 | `puppet_avatar_url` | string | Puppet avatar URL |
 | `puppet_color` | string | Puppet name color |
+| `persona_id` | int | Persona ID to send message as |
 | `widget_content` | string (JSON) | Interactive widget definition |
 
 ### User Settings (`PATCH /api/v1/settings`)

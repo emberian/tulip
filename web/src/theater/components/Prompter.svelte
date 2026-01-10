@@ -64,6 +64,18 @@
         if (event.key === "Enter" && !event.shiftKey) {
             event.preventDefault();
             sendMessage();
+        } else if (event.key === "Escape") {
+            event.preventDefault();
+            textareaElement?.blur();
+        } else if (event.key === "ArrowLeft") {
+            // At start of textarea, move focus to sidebar
+            if (textareaElement?.selectionStart === 0 && textareaElement?.selectionEnd === 0) {
+                event.preventDefault();
+                textareaElement?.blur();
+                // Focus first focusable element in sidebar
+                const sidebarLink = document.querySelector<HTMLElement>(".theater-sidebar a, .theater-sidebar button");
+                sidebarLink?.focus();
+            }
         }
     }
 
@@ -160,7 +172,7 @@
             ></textarea>
             <div class="prompter-hints-bar">
                 <span class="prompter-hints" aria-hidden="true">
-                    <kbd>Enter</kbd> send · <kbd>Shift+Enter</kbd> new line · <kbd>c</kbd> focus
+                    <kbd>Enter</kbd> send · <kbd>Esc</kbd> blur · <kbd>c</kbd> focus · <kbd>s</kbd> sidebar
                 </span>
             </div>
         </div>

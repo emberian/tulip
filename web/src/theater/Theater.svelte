@@ -172,7 +172,40 @@
     function toggleSidebar() {
         sidebarCollapsed = !sidebarCollapsed;
     }
+
+    function handleGlobalKeydown(event: KeyboardEvent) {
+        // Don't intercept if user is in an input
+        const target = event.target as HTMLElement;
+        if (target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.isContentEditable) {
+            return;
+        }
+
+        switch (event.key) {
+            case "Escape":
+                // Close sidebar on mobile (if open)
+                if (!sidebarCollapsed && typeof window !== "undefined" && window.innerWidth < 768) {
+                    event.preventDefault();
+                    sidebarCollapsed = true;
+                }
+                break;
+            case "s":
+                // Toggle sidebar
+                event.preventDefault();
+                toggleSidebar();
+                break;
+            case "ArrowRight":
+                // Focus prompter from anywhere
+                if (hasActiveScene) {
+                    event.preventDefault();
+                    const textarea = document.querySelector<HTMLTextAreaElement>(".prompter textarea");
+                    textarea?.focus();
+                }
+                break;
+        }
+    }
 </script>
+
+<svelte:window onkeydown={handleGlobalKeydown} />
 
 <a href="#theater-stage-content" class="theater-skip-link">Skip to content</a>
 
