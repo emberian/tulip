@@ -1,194 +1,80 @@
-# Tulip
-
-Tulip is a fork of [Zulip](https://github.com/zulip/zulip) with enhanced bot capabilities, rich interactive widgets, and additional features for building immersive chat experiences.
-
-## Changes from Upstream Zulip
-
-This fork introduces several new features not present in the upstream Zulip project:
-
-### Bot Extensibility System
-
-A comprehensive system for building interactive bots with rich UI capabilities.
-
-#### Rich Widgets
-
-Bots can send messages with embedded interactive UI elements:
-
-- **Rich Embeds** - Discord-style embeds with titles, fields, images, and colored borders
-- **Interactive Widgets** - Buttons, select menus, and modals that trigger bot interactions
-- **Freeform Widgets** - Custom HTML/CSS/JS widgets for trusted bots (with external dependency support)
-
-#### Bot Commands
-
-Bots can register slash commands that appear in the compose box typeahead with autocomplete support. Users can type `/command` and see suggestions from registered bots.
-
-#### Bot Interactions
-
-When users interact with widgets (clicking buttons, selecting options, submitting modals), events are delivered to bots via webhooks or the embedded bot handler. Bots can respond with:
-
-- Public messages
-- Ephemeral responses (visible only to the interacting user)
-- Private responses (visible to specific users)
-- New widgets
-
-See [ADVANCED_BOTS.md](./ADVANCED_BOTS.md) for complete documentation.
-
-### Bot Presence
-
-Bots now have presence tracking, displayed in the sidebar:
-
-- **Automatic tracking**: Bots with active event queues are automatically shown as online
-- **Manual API**: Webhook bots can explicitly update their presence via `/api/v1/bots/me/presence`
-- **Sidebar display**: Connected bots appear with green indicators; disconnected bots show when they were last seen
-
-### Puppets (Stream Personas)
-
-Streams can enable "puppet mode" which allows users to send messages as custom personas:
-
-- Users can create character identities with custom names and avatars
-- Messages sent as puppets show the puppet name/avatar but are attributed to the real user
-- Typeahead suggests previously used puppets in the stream
-- Recent view shows puppet information alongside real sender
-
-Enable puppet mode per-stream in stream settings.
-
-### Inline Spoilers
-
-New markdown syntax for inline spoiler text:
-
-```
-This text is visible ||but this is hidden until clicked||.
-```
-
-Inline spoilers appear as clickable "spoiler" badges that reveal the hidden text when clicked.
-
-### User Group Colors
-
-User groups can now have associated colors, which can be used for visual distinction in mentions and group displays.
-
-### Profile Change Notifications
-
-Users receive private messages from Notification Bot when their profile is modified:
-
-- Full name changes
-- Role changes
-- Custom profile field updates
-
-This covers both administrator-initiated changes and system changes (LDAP sync, management commands).
-
-## Database Schema Changes
-
-The following database migrations have been added:
-
-| Migration | Description |
-|-----------|-------------|
-| `0773_add_color_to_user_groups` | Adds `color` field to UserGroup model |
-| `0774_add_stream_puppet_mode` | Adds `enable_puppet_mode` field to Stream model |
-| `0775_add_message_puppet_fields` | Adds puppet fields to Message model |
-| `0776_add_stream_puppet_model` | Adds StreamPuppet model for tracking puppets |
-
-## New Models
-
-### BotPresence
-
-Tracks the connection status of bots:
-
-```python
-class BotPresence(models.Model):
-    bot = models.OneToOneField(UserProfile, ...)
-    realm = models.ForeignKey(Realm, ...)
-    is_connected = models.BooleanField(default=False)
-    last_connected_time = models.DateTimeField(null=True)
-```
-
-### BotCommand
-
-Stores slash commands registered by bots:
-
-```python
-class BotCommand(models.Model):
-    bot_profile = models.ForeignKey(UserProfile, ...)
-    realm = models.ForeignKey(Realm, ...)
-    name = models.CharField(max_length=32)
-    description = models.TextField(max_length=100)
-    options_schema = models.JSONField(default=list)
-```
-
-### StreamPuppet
-
-Tracks puppet personas used in streams (created during message sending).
-
-## New API Endpoints
-
-| Endpoint | Method | Description |
-|----------|--------|-------------|
-| `/json/bot_interactions` | POST | Handle widget interactions |
-| `/json/bot_commands` | GET | List registered bot commands |
-| `/json/bot_commands/register` | POST | Register a new bot command |
-| `/json/bot_commands/{id}` | DELETE | Delete a bot command |
-| `/json/bot_commands/{bot_id}/autocomplete` | GET | Fetch dynamic autocomplete |
-| `/api/v1/bots/me/presence` | POST | Update bot presence status |
-| `/json/streams/{id}/puppets` | GET | List puppets used in a stream |
-
-## New Event Types
-
-| Event Type | Description |
-|------------|-------------|
-| `bot_presence` | Bot connection status changed |
-| `bot_commands` | Bot commands added/removed/updated |
-
-## New Queue Workers
-
-### bot_interactions
-
-Processes interaction events from widgets and delivers them to bots:
-
-- Outgoing webhook bots receive HTTP POST to their configured URL
-- Embedded bots receive calls to their `handle_interaction()` method
-
-## Frontend Changes
-
-### New TypeScript Modules
-
-- `bot_presence.ts` - Client-side bot presence tracking
-- `stream_puppets.ts` - Stream puppet management and caching
-- `freeform_widget.ts` - Freeform widget rendering with dependency loading
-- `interactive_widget.ts` - Interactive widget (buttons, menus) handling
-- `bot_modal.ts` - Bot-triggered modal dialogs
-
-### Buddy List (Sidebar)
-
-The right sidebar now includes a "Bots" section showing bot presence status with online/offline indicators.
-
-### Compose Box
-
-- Typeahead now suggests bot commands (`/command`)
-- Dynamic autocomplete fetches suggestions from bots in real-time
-- Puppet mode typeahead for puppet-enabled streams
-
-### Spoiler Rendering
-
-Added support for inline spoilers in rendered markdown with click-to-reveal functionality.
-
-## Testing
-
-New test files added:
-
-- `test_bot_presence.py` - Bot presence API and event tests
-- `test_bot_interactions.py` - Bot interaction worker and widget tests
-- `test_puppets.py` - Puppet mode tests
-- `test_widgets.py` - Widget rendering tests
-- `bot-presence.test.ts` - E2E tests for bot presence in sidebar
-- `advanced-bot-widgets.test.ts` - E2E tests for interactive widgets
-
-## Configuration
-
-No new configuration settings are required. All features use existing Zulip configuration patterns.
-
-## Compatibility
-
-This fork maintains compatibility with Zulip clients and APIs. The new features are additive and don't break existing functionality.
-
-## License
-
-Same as upstream Zulip - Apache 2.0 License.
+# Zulip overview
+
+[Zulip](https://zulip.com) is an open-source organized team chat app with unique
+[topic-based threading][why-zulip] that combines the best of email and chat to
+make remote work productive and delightful. Fortune 500 companies, [leading open
+source projects][rust-case-study], and thousands of other organizations use
+Zulip every day. Zulip is the only [modern team chat app][features] that is
+designed for both live and asynchronous conversations.
+
+Zulip is built by a distributed community of developers from all around the
+world, with 99+ people who have each contributed 100+ commits. With
+over 1,500 contributors merging over 500 commits a month, Zulip is the
+largest and fastest growing open source team chat project.
+
+Come find us on the [development community chat](https://zulip.com/development-community/)!
+
+[![GitHub Actions build status](https://github.com/zulip/zulip/actions/workflows/zulip-ci.yml/badge.svg)](https://github.com/zulip/zulip/actions/workflows/zulip-ci.yml?query=branch%3Amain)
+[![coverage status](https://img.shields.io/codecov/c/github/zulip/zulip/main.svg)](https://codecov.io/gh/zulip/zulip)
+[![Mypy coverage](https://img.shields.io/badge/mypy-100%25-green.svg)][mypy-coverage]
+[![Ruff](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json)](https://github.com/astral-sh/ruff)
+[![code style: prettier](https://img.shields.io/badge/code_style-prettier-ff69b4.svg)](https://github.com/prettier/prettier)
+[![GitHub release](https://img.shields.io/github/release/zulip/zulip.svg)](https://github.com/zulip/zulip/releases/latest)
+[![docs](https://readthedocs.org/projects/zulip/badge/?version=latest)](https://zulip.readthedocs.io/en/latest/)
+[![Zulip chat](https://img.shields.io/badge/zulip-join_chat-brightgreen.svg)](https://chat.zulip.org)
+[![Twitter](https://img.shields.io/badge/twitter-@zulip-blue.svg?style=flat)](https://twitter.com/zulip)
+[![GitHub Sponsors](https://img.shields.io/github/sponsors/zulip)](https://github.com/sponsors/zulip)
+
+[mypy-coverage]: https://blog.zulip.org/2016/10/13/static-types-in-python-oh-mypy/
+[why-zulip]: https://zulip.com/why-zulip/
+[rust-case-study]: https://zulip.com/case-studies/rust/
+[features]: https://zulip.com/features/
+
+## Getting started
+
+- **Contributing code**. Check out our [guide for new
+  contributors](https://zulip.readthedocs.io/en/latest/contributing/contributing.html)
+  to get started. We have invested in making Zulip’s code highly
+  readable, thoughtfully tested, and easy to modify. Beyond that, we
+  have written an extraordinary 185K words of documentation for Zulip
+  contributors.
+
+- **Contributing non-code**. [Report an
+  issue](https://zulip.readthedocs.io/en/latest/contributing/reporting-bugs.html),
+  [translate](https://zulip.readthedocs.io/en/latest/translating/translating.html)
+  Zulip into your language, or [give us
+  feedback](https://zulip.readthedocs.io/en/latest/contributing/suggesting-features.html).
+  We'd love to hear from you, whether you've been using Zulip for years, or are just
+  trying it out for the first time.
+
+- **Checking Zulip out**. The best way to see Zulip in action is to [drop
+  by](https://chat.zulip.org/?show_try_zulip_modal) the Zulip development
+  community (no account required). We also recommend reading about Zulip's
+  [unique approach](https://zulip.com/why-zulip/) to organizing conversations.
+
+- **Running a Zulip server**. Self-host Zulip directly on Ubuntu or Debian
+  Linux, in [Docker](https://github.com/zulip/docker-zulip), or with prebuilt
+  images for [Digital Ocean](https://marketplace.digitalocean.com/apps/zulip) and
+  [Render](https://render.com/docs/deploy-zulip).
+  Learn more about [self-hosting Zulip](https://zulip.com/self-hosting/).
+
+- **Using Zulip without setting up a server**. Learn about [Zulip
+  Cloud](https://zulip.com/zulip-cloud/) hosting options. Zulip sponsors free [Zulip
+  Cloud Standard](https://zulip.com/plans/) for hundreds of worthy
+  organizations, including [fellow open-source
+  projects](https://zulip.com/for/open-source/).
+
+- **Participating in [outreach
+  programs](https://zulip.readthedocs.io/en/latest/contributing/contributing.html#outreach-programs)**
+  like [Google Summer of Code](https://developers.google.com/open-source/gsoc/).
+
+- **Supporting Zulip**. Learn about all the ways you can [support
+  Zulip](https://zulip.com/help/support-zulip-project), including contributing
+  financially, and helping others discover it.
+
+You may also be interested in reading our [blog](https://blog.zulip.org/), and
+following us on [LinkedIn](https://www.linkedin.com/company/zulip-project/),
+[Mastodon](https://fosstodon.org/@zulip), and [X](https://x.com/zulip).
+
+Zulip is distributed under the
+[Apache 2.0](https://github.com/zulip/zulip/blob/main/LICENSE) license.
