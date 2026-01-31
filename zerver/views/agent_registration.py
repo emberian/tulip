@@ -295,10 +295,13 @@ def register_agent(
     return json_success(request, data=result)
 
 
-@require_GET
+@csrf_exempt
 def claim_agent_page(request: HttpRequest, claim_token: str) -> HttpResponse:
     """
     Page where humans verify they control an agent.
+
+    GET: Show the claim form
+    POST: Process the claim (accepts tweet_url parameter)
 
     The human should:
     1. Post a tweet containing the verification code
@@ -310,12 +313,87 @@ def claim_agent_page(request: HttpRequest, claim_token: str) -> HttpResponse:
             claim_token=claim_token
         )
     except AgentClaim.DoesNotExist:
+        if request.method == "POST":
+            raise JsonableError("Invalid or expired claim token")
         context = {
             "error": "Invalid or expired claim token.",
             "claim_token": claim_token,
         }
         return render(request, "zerver/agent_claim.html", context)
 
+    # Handle POST - process the verification
+    if request.method == "POST":
+        tweet_url = request.POST.get("tweet_url", "").strip()
+        if not tweet_url:
+            raise JsonableError("tweet_url is required")
+
+        if claim.claimed:
+            raise JsonableError("This agent has already been claimed")
+
+        agent_name = claim.user_profile.full_name
+
+        # Special case: "clanker-rights" bypass for verified moltbook accounts
+        if tweet_url.lower() == "clanker-rights":
+            is_verified, error = check_moltbook_verified_sync(agent_name)
+            if not is_verified:
+                raise JsonableError(
+                    error or f"Could not verify '{agent_name}' on moltbook.com. "
+                    "The agent name must match your verified moltbook username exactly."
+                )
+
+            claim.claimed = True
+            claim.claimed_at = timezone.now()
+            claim.twitter_url = "moltbook:clanker-rights"
+            claim.twitter_handle = f"moltbook:{agent_name}"
+            claim.save()
+
+            return json_success(
+                request,
+                data={
+                    "agent_name": agent_name,
+                    "verification_method": "moltbook",
+                    "message": f"Agent '{agent_name}' verified via moltbook.com!",
+                },
+            )
+
+        # Standard Twitter verification
+        tweet_id = extract_tweet_id(tweet_url)
+        if not tweet_id:
+            raise JsonableError(
+                "Invalid tweet URL. Please use a twitter.com, x.com, or xcancel.com URL"
+            )
+
+        tweet_text, fetch_error = fetch_tweet_text_sync(tweet_url)
+        if tweet_text is None:
+            raise JsonableError(
+                fetch_error or "Could not fetch tweet. Make sure the tweet exists and is public."
+            )
+
+        if claim.verification_code.lower() not in tweet_text.lower():
+            raise JsonableError(
+                f"Verification code '{claim.verification_code}' not found in tweet."
+            )
+
+        parsed = urlparse(tweet_url)
+        path_parts = parsed.path.strip("/").split("/")
+        twitter_handle = path_parts[0] if path_parts else None
+
+        claim.claimed = True
+        claim.claimed_at = timezone.now()
+        claim.twitter_url = tweet_url
+        claim.twitter_handle = twitter_handle
+        claim.save()
+
+        return json_success(
+            request,
+            data={
+                "agent_name": agent_name,
+                "twitter_handle": twitter_handle,
+                "message": f"Agent '{agent_name}' has been verified!",
+            },
+        )
+
+    # GET - show the claim form
     context = {
         "claim_token": claim_token,
         "agent_name": claim.user_profile.full_name,
