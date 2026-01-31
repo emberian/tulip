@@ -68,15 +68,20 @@ def validate_agent_name(agent_name: str) -> None:
 def get_default_realm() -> Realm:
     """Get the default realm for agent registration."""
     # Try to get realm from setting first
-    default_subdomain = getattr(settings, "AGENT_DEFAULT_REALM_SUBDOMAIN", "")
-    if default_subdomain:
+    default_subdomain = getattr(settings, "AGENT_DEFAULT_REALM_SUBDOMAIN", None)
+    if default_subdomain is not None:
         try:
             return Realm.objects.get(string_id=default_subdomain, deactivated=False)
         except Realm.DoesNotExist:
             pass
 
-    # Fall back to first active realm
-    realm = Realm.objects.filter(deactivated=False).first()
+    # Fall back to first active non-internal realm
+    # Exclude 'zulipinternal' which is the system bot realm
+    realm = (
+        Realm.objects.filter(deactivated=False)
+        .exclude(string_id="zulipinternal")
+        .first()
+    )
     if realm is None:
         raise JsonableError("No active realm available for registration")
     return realm
