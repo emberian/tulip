@@ -36,6 +36,88 @@ class PuppetMessageTest(ZulipTestCase):
         self.assertEqual(message.puppet_display_name, "Gandalf")
         self.assertEqual(message.puppet_avatar_url, "https://example.com/gandalf.png")
 
+    def test_puppet_message_api_response_shows_puppet_name(self) -> None:
+        """API response should show puppet name as sender_full_name."""
+        user = self.example_user("hamlet")
+        self.login_user(user)
+        stream = self.subscribe(user, "RPG")
+
+        # Enable puppet mode on the stream
+        stream.enable_puppet_mode = True
+        stream.save()
+
+        # Send a puppet message
+        result = self.client_post(
+            "/json/messages",
+            {
+                "type": "stream",
+                "to": orjson.dumps("RPG").decode(),
+                "topic": "adventure",
+                "content": "Hello, I am the wizard!",
+                "puppet_display_name": "Gandalf",
+                "puppet_avatar_url": "https://example.com/gandalf.png",
+            },
+        )
+        self.assert_json_success(result)
+        message_id = self.assert_json_success(result)["id"]
+
+        # Fetch the message via API and verify sender_full_name is the puppet name
+        result = self.client_get(
+            "/json/messages",
+            {
+                "narrow": orjson.dumps([{"operator": "id", "operand": message_id}]).decode(),
+                "anchor": message_id,
+                "num_before": 0,
+                "num_after": 0,
+            },
+        )
+        data = self.assert_json_success(result)
+        messages = data["messages"]
+        self.assertEqual(len(messages), 1)
+
+        msg = messages[0]
+        # The sender_full_name should be the puppet name, not the actual user's name
+        self.assertEqual(msg["sender_full_name"], "Gandalf")
+        # The avatar_url should be the puppet avatar
+        self.assertEqual(msg["avatar_url"], "https://example.com/gandalf.png")
+        # But sender_id should still be the actual user's ID
+        self.assertEqual(msg["sender_id"], user.id)
+
+    def test_puppet_message_event_shows_puppet_name(self) -> None:
+        """Real-time message event should show puppet name as sender_full_name."""
+        user = self.example_user("hamlet")
+        othello = self.example_user("othello")
+        self.login_user(user)
+        stream = self.subscribe(user, "RPG")
+        self.subscribe(othello, "RPG")
+
+        # Enable puppet mode on the stream
+        stream.enable_puppet_mode = True
+        stream.save()
+
+        # Capture events for othello when message is sent
+        with self.capture_send_event_calls(expected_num_events=1) as events:
+            self.client_post(
+                "/json/messages",
+                {
+                    "type": "stream",
+                    "to": orjson.dumps("RPG").decode(),
+                    "topic": "adventure",
+                    "content": "Hello, I am the wizard!",
+                    "puppet_display_name": "Gandalf",
+                    "puppet_avatar_url": "https://example.com/gandalf.png",
+                },
+            )
+
+        # Check the message event
+        event = events[0]["event"]
+        self.assertEqual(event["type"], "message")
+        msg = event["message"]
+        # The sender_full_name in the event should be the puppet name
+        self.assertEqual(msg["sender_full_name"], "Gandalf")
+        # The avatar_url should be the puppet avatar
+        self.assertEqual(msg["avatar_url"], "https://example.com/gandalf.png")
+
     def test_send_puppet_message_to_non_puppet_stream(self) -> None:
         """Sending a puppet message to a non-puppet stream should fail."""
         user = self.example_user("hamlet")

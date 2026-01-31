@@ -389,9 +389,14 @@ export function initialize(): void {
         onShow(instance) {
             const $ref = $(instance.reference);
             const persona_real_sender = $ref.attr("data-persona-real-sender");
+            const puppet_real_sender = $ref.attr("data-puppet-real-sender");
             if (persona_real_sender) {
                 // For persona messages, show "Posted by [Real Name]"
                 const tooltip_html = `<span>Posted by <strong>${_.escape(persona_real_sender)}</strong></span>`;
+                instance.setContent(parse_html(tooltip_html));
+            } else if (puppet_real_sender) {
+                // For puppet messages, show "Posted by [Real Name]"
+                const tooltip_html = `<span>Posted by <strong>${_.escape(puppet_real_sender)}</strong></span>`;
                 instance.setContent(parse_html(tooltip_html));
             } else {
                 const is_bot = $ref.attr("data-is-bot") === "true";

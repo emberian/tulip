@@ -119,6 +119,7 @@ class AbstractMessage(models.Model):
     # When set, messages display with this name/avatar instead of the sender's.
     puppet_display_name = models.CharField(max_length=100, null=True, default=None)
     puppet_avatar_url = models.URLField(max_length=500, null=True, default=None)
+    puppet_color = models.CharField(max_length=10, null=True, default=None)
 
     # Persona identity - user-owned character that overrides sender display.
     # Unlike puppets (bot-controlled, stream-scoped), personas are personal and portable.

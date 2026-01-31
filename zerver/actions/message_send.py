@@ -2004,6 +2004,7 @@ def check_message(
     # Set puppet identity if provided (already validated above)
     message.puppet_display_name = puppet_display_name
     message.puppet_avatar_url = puppet_avatar_url
+    message.puppet_color = puppet_color
 
     # Set persona identity if provided
     if persona_id is not None:

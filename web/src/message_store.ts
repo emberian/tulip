@@ -92,6 +92,7 @@ export const raw_message_schema = z.intersection(
             // Puppet identity for character/roleplay messages
             puppet_display_name: z.optional(z.nullable(z.string())),
             puppet_avatar_url: z.optional(z.nullable(z.string())),
+            puppet_color: z.optional(z.nullable(z.string())),
             // Persona identity for user character/roleplay messages
             persona_id: z.optional(z.nullable(z.number())),
             persona_display_name: z.optional(z.nullable(z.string())),

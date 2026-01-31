@@ -345,6 +345,7 @@ class MessageDict:
                 "sender__realm_id": message.sender.realm_id,
                 "puppet_display_name": message.puppet_display_name,
                 "puppet_avatar_url": message.puppet_avatar_url,
+                "puppet_color": message.puppet_color,
                 "persona_id": message.persona_id,
                 "persona_display_name": message.persona_display_name,
                 "persona_avatar_url": message.persona_avatar_url,
@@ -378,6 +379,7 @@ class MessageDict:
             "sender__realm_id",
             "puppet_display_name",
             "puppet_avatar_url",
+            "puppet_color",
             "persona_id",
             "persona_display_name",
             "persona_avatar_url",
@@ -421,6 +423,7 @@ class MessageDict:
             submessages=row["submessages"],
             puppet_display_name=row.get("puppet_display_name"),
             puppet_avatar_url=row.get("puppet_avatar_url"),
+            puppet_color=row.get("puppet_color"),
             persona_id=row.get("persona_id"),
             persona_display_name=row.get("persona_display_name"),
             persona_avatar_url=row.get("persona_avatar_url"),
@@ -449,6 +452,7 @@ class MessageDict:
         submessages: list[dict[str, Any]],
         puppet_display_name: str | None = None,
         puppet_avatar_url: str | None = None,
+        puppet_color: str | None = None,
         persona_id: int | None = None,
         persona_display_name: str | None = None,
         persona_avatar_url: str | None = None,
@@ -521,6 +525,7 @@ class MessageDict:
         if puppet_display_name is not None:
             obj["puppet_display_name"] = puppet_display_name
             obj["puppet_avatar_url"] = puppet_avatar_url
+            obj["puppet_color"] = puppet_color
 
         # Persona identity for user character/roleplay messages
         if persona_display_name is not None:

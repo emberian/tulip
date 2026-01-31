@@ -79,6 +79,7 @@ export type MessageContainer = {
     small_avatar_url: string;
     status_message: string | false;
     persona_real_sender: string | null;
+    puppet_real_sender: string | null;
     stream_url?: string;
     subscribed?: boolean;
     pm_with_url?: string;
@@ -619,6 +620,7 @@ export class MessageListView {
         moved: boolean;
         modified: boolean;
         persona_real_sender: string | null;
+        puppet_real_sender: string | null;
     } {
         const is_typing = typing_data.is_message_editing(message.id);
         if (is_typing) {
@@ -691,12 +693,21 @@ export class MessageListView {
         const sender_is_guest = people.sender_is_guest(message);
         const sender_is_deactivated = people.sender_is_deactivated(message);
         const sender = people.get_by_user_id(message.sender_id);
-        // Use persona color if available, otherwise use effective_color (considers group memberships), fall back to personal color
+        // Use puppet/persona color if available, otherwise use effective_color (considers group memberships), fall back to personal color
         const sender_color =
-            message.persona_color ?? sender?.effective_color ?? sender?.color ?? null;
+            message.puppet_color ??
+            message.persona_color ??
+            sender?.effective_color ??
+            sender?.color ??
+            null;
         // For persona messages, include the real sender's name for tooltip
         const persona_real_sender =
             message.persona_id !== undefined ? (sender?.full_name ?? null) : null;
+        // For puppet messages, include the real sender's name for tooltip
+        const puppet_real_sender =
+            message.puppet_display_name !== undefined && message.puppet_display_name !== null
+                ? (sender?.full_name ?? null)
+                : null;
         const should_add_guest_indicator_for_sender = people.should_add_guest_user_indicator(
             message.sender_id,
         );
@@ -732,6 +743,7 @@ export class MessageListView {
             mention_classname,
             include_sender,
             persona_real_sender,
+            puppet_real_sender,
             ...this._maybe_get_me_message(is_hidden, message),
             ...this._get_message_edited_and_moved_vars(message),
         };

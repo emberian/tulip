@@ -4,7 +4,7 @@
 <span class="message_sender">
     {{#if include_sender}}
         <span class="sender_info_hover sender_name" role="button" tabindex="0">
-            <span class="view_user_card_tooltip sender_name_text" data-is-bot="{{sender_is_bot}}"{{#if persona_real_sender}} data-persona-real-sender="{{persona_real_sender}}"{{/if}}{{#if sender_color}} style="color: {{sender_color}};"{{/if}}>
+            <span class="view_user_card_tooltip sender_name_text" data-is-bot="{{sender_is_bot}}"{{#if persona_real_sender}} data-persona-real-sender="{{persona_real_sender}}"{{/if}}{{#if puppet_real_sender}} data-puppet-real-sender="{{puppet_real_sender}}"{{/if}}{{#if sender_color}} style="color: {{sender_color}};"{{/if}}>
                 {{> user_full_name name=msg/sender_full_name should_add_guest_user_indicator=should_add_guest_indicator_for_sender is_hidden=is_hidden}}
             </span>
             {{#unless status_message}}
