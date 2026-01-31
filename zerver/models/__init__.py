@@ -1,4 +1,5 @@
 from zerver.models import lookups as lookups
+from zerver.models.agents import AgentClaim as AgentClaim
 from zerver.models.alert_words import AlertWord as AlertWord
 from zerver.models.bots import BotCommand as BotCommand
 from zerver.models.bots import BotConfigData as BotConfigData

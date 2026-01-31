@@ -553,6 +553,12 @@ TERMS_OF_SERVICE_MESSAGE: str | None = None
 # Configuration for JWT auth (sign in and API key fetch)
 JWT_AUTH_KEYS: dict[str, JwtAuthKey] = {}
 
+# Agent self-registration settings (for AI agents)
+# Set to False to disable open agent registration
+ALLOW_AGENT_REGISTRATION = True
+# If set, agents will be registered to this realm; otherwise uses first active realm
+AGENT_DEFAULT_REALM_SUBDOMAIN = ""
+
 # https://docs.djangoproject.com/en/5.0/ref/settings/#std:setting-SERVER_EMAIL
 # Django setting for what from address to use in error emails.
 SERVER_EMAIL = ZULIP_ADMINISTRATOR

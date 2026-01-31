@@ -25,6 +25,11 @@ from zerver.tornado.views import (
     notify,
     web_reload_clients,
 )
+from zerver.views.agent_registration import (
+    claim_agent_page,
+    register_agent,
+    verify_agent_claim,
+)
 from zerver.views.alert_words import add_alert_words, list_alert_words, remove_alert_words
 from zerver.views.antispam import get_challenge
 from zerver.views.attachments import list_by_user, remove
@@ -924,6 +929,10 @@ v1_api_mobile_patterns = [
     #  This view accepts a JWT containing an email and returns an API key
     #  and the details for a single user.
     path("jwt/fetch_api_key", jwt_fetch_api_key),
+    # Open registration endpoint for AI agents
+    path("register_agent", register_agent),
+    # Verify agent claim (human submits tweet URL)
+    path("claim_agent", verify_agent_claim),
 ]
 
 # Include URL configuration files for site-specified extra installed
@@ -942,6 +951,9 @@ urls += [
     path("api/internal/web_reload_clients", web_reload_clients),
     path("api/v1/events/internal", get_events_internal),
 ]
+
+# Agent claim page (for human verification of AI agents)
+urls += [path("claim/<str:claim_token>", claim_agent_page)]
 
 # Python Social Auth
 
