@@ -1462,7 +1462,10 @@ def get_puppet_handlers(
     except StreamPuppet.DoesNotExist:
         raise JsonableError(_("Puppet not found"))
 
-    handlers = PuppetHandler.objects.filter(puppet=puppet).select_related("handler")
+    handlers = PuppetHandler.objects.filter(
+        puppet=puppet,
+        handler__is_active=True,
+    ).select_related("handler")
     return json_success(
         request,
         data={

@@ -15,6 +15,16 @@ from zerver.models import UserProfile
 from zerver.models.personas import UserPersona
 
 
+def normalize_hex_color(color: str | None) -> str | None:
+    """Normalize 3-digit hex colors to 6-digit format."""
+    if color is None:
+        return None
+    if len(color) == 4:  # #RGB
+        # Expand #RGB to #RRGGBB
+        return f"#{color[1]}{color[1]}{color[2]}{color[2]}{color[3]}{color[3]}"
+    return color
+
+
 def get_personas(
     request: HttpRequest,
     user_profile: UserProfile,
@@ -36,7 +46,7 @@ def create_persona(
     ],
     avatar_url: Annotated[
         str | None,
-        StringConstraints(max_length=500),
+        StringConstraints(max_length=500, pattern=r"^https://[^\s]+$"),
     ] = None,
     color: Annotated[
         str | None,
@@ -48,11 +58,14 @@ def create_persona(
     ] = "",
 ) -> HttpResponse:
     """Create a new persona."""
+    # Normalize color to 6-digit hex
+    normalized_color = normalize_hex_color(color)
+
     persona = do_create_persona(
         user_profile=user_profile,
         name=name.strip(),
         avatar_url=avatar_url,
-        color=color,
+        color=normalized_color,
         bio=bio.strip(),
     )
     return json_success(request, data={"persona": persona.to_api_dict()})
@@ -72,11 +85,11 @@ def update_persona(
     ] = None,
     avatar_url: Annotated[
         str | None,
-        StringConstraints(max_length=500),
+        StringConstraints(max_length=500, pattern=r"^(|https://[^\s]+)$"),
     ] = None,
     color: Annotated[
         str | None,
-        StringConstraints(pattern=r"^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$"),
+        StringConstraints(pattern=r"^(|#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}))$"),
     ] = None,
     bio: Annotated[
         str | None,
@@ -88,12 +101,15 @@ def update_persona(
         # No changes requested
         return json_success(request)
 
+    # Normalize color to 6-digit hex (or None if empty)
+    normalized_color = normalize_hex_color(color) if color else color
+
     persona = do_update_persona(
         persona_id=persona_id,
         user_profile=user_profile,
         name=name.strip() if name else None,
         avatar_url=avatar_url,
-        color=color,
+        color=normalized_color,
         bio=bio.strip() if bio else None,
     )
     return json_success(request, data={"persona": persona.to_api_dict()})
@@ -114,12 +130,20 @@ def get_realm_personas(
     request: HttpRequest,
     user_profile: UserProfile,
 ) -> HttpResponse:
-    """Get all active personas in the realm for @-mention typeahead."""
-    personas = UserPersona.objects.filter(
-        user__realm=user_profile.realm,
-        user__is_active=True,
-        is_active=True,
-    ).select_related("user")
+    """Get active personas in the realm for @-mention typeahead.
+
+    Limited to 200 most recently created personas to prevent
+    performance issues in large realms.
+    """
+    personas = (
+        UserPersona.objects.filter(
+            user__realm=user_profile.realm,
+            user__is_active=True,
+            is_active=True,
+        )
+        .select_related("user")
+        .order_by("-created_at")[:200]
+    )
 
     return json_success(
         request,

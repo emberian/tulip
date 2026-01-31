@@ -70,7 +70,11 @@ export function hide_selector(): void {
 
 export function update_for_stream(stream_id: number | undefined): void {
     if (stream_id === undefined) {
-        // DM - always show selector if user has personas
+        // DM - reset persona to "Yourself" and show selector if user has personas
+        // We don't want personas to accidentally carry over to DMs
+        personas.set_compose_persona_id(null, undefined);
+        update_selector_display();
+
         const my_personas = personas.get_my_personas();
         if (my_personas.length > 0) {
             show_selector();

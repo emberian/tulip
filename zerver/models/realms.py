@@ -503,6 +503,9 @@ class Realm(models.Model):
     # Messages older than this message ID in the organization are inaccessible.
     first_visible_message_id = models.IntegerField(default=0)
 
+    # Maximum number of personas each user can create (0 = unlimited)
+    max_personas_per_user = models.IntegerField(default=20)
+
     # Valid org types
     ORG_TYPES: dict[str, OrgTypeDict] = {
         "unspecified": {

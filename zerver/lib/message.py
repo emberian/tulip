@@ -1889,6 +1889,7 @@ def get_whisper_visible_user_ids(
             UserPersona.objects.filter(
                 id__in=persona_ids,
                 is_active=True,
+                user__is_active=True,  # Don't grant access to deactivated users
             ).values_list("user_id", flat=True)
         )
         user_ids |= persona_owner_ids

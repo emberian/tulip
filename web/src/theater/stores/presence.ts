@@ -4,6 +4,8 @@
 
 import {writable, derived} from "svelte/store";
 
+import {users} from "./users";
+
 export type PresenceStatus = "active" | "idle" | "offline";
 
 export interface CastMember {
@@ -30,6 +32,18 @@ function createPresenceStore() {
                 if (member) {
                     const newMap = new Map(map);
                     newMap.set(userId, {...member, status});
+                    return newMap;
+                }
+                // User not in cast list - look up in users store and add them
+                const userInfo = users.getUser(userId);
+                if (userInfo) {
+                    const newMap = new Map(map);
+                    newMap.set(userId, {
+                        user_id: userId,
+                        full_name: userInfo.full_name,
+                        avatar_url: userInfo.avatar_url,
+                        status,
+                    });
                     return newMap;
                 }
                 return map;

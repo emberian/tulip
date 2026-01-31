@@ -2,7 +2,7 @@ import orjson
 
 from zerver.lib.test_classes import ZulipTestCase
 from zerver.models import Message, Stream
-from zerver.models.streams import StreamPuppet
+from zerver.models.streams import PuppetHandler, StreamPuppet
 
 
 class PuppetMessageTest(ZulipTestCase):
@@ -320,3 +320,171 @@ class PuppetMentionTest(ZulipTestCase):
         message = Message.objects.latest("id")
         assert message.rendered_content is not None
         self.assertIn('class="puppet-mention silent"', message.rendered_content)
+
+
+class PuppetValidationTest(ZulipTestCase):
+    """Tests for puppet message validation."""
+
+    def test_puppet_avatar_url_must_be_https(self) -> None:
+        """Puppet avatar URL must use https."""
+        user = self.example_user("hamlet")
+        self.login_user(user)
+        stream = self.subscribe(user, "RPG")
+        stream.enable_puppet_mode = True
+        stream.save()
+
+        # HTTP URL should be rejected
+        result = self.client_post(
+            "/json/messages",
+            {
+                "type": "stream",
+                "to": orjson.dumps("RPG").decode(),
+                "topic": "adventure",
+                "content": "Hello!",
+                "puppet_display_name": "Gandalf",
+                "puppet_avatar_url": "http://example.com/gandalf.png",
+            },
+        )
+        self.assert_json_error_contains(result, "puppet_avatar_url")
+
+        # HTTPS URL should work
+        result = self.client_post(
+            "/json/messages",
+            {
+                "type": "stream",
+                "to": orjson.dumps("RPG").decode(),
+                "topic": "adventure",
+                "content": "Hello!",
+                "puppet_display_name": "Gandalf",
+                "puppet_avatar_url": "https://example.com/gandalf.png",
+            },
+        )
+        self.assert_json_success(result)
+
+    def test_puppet_color_validation(self) -> None:
+        """Puppet color must be valid hex format."""
+        user = self.example_user("hamlet")
+        self.login_user(user)
+        stream = self.subscribe(user, "RPG")
+        stream.enable_puppet_mode = True
+        stream.save()
+
+        # Invalid color should be rejected
+        result = self.client_post(
+            "/json/messages",
+            {
+                "type": "stream",
+                "to": orjson.dumps("RPG").decode(),
+                "topic": "adventure",
+                "content": "Hello!",
+                "puppet_display_name": "Gandalf",
+                "puppet_color": "red",
+            },
+        )
+        self.assert_json_error_contains(result, "puppet_color")
+
+        # Valid 6-digit hex should work
+        result = self.client_post(
+            "/json/messages",
+            {
+                "type": "stream",
+                "to": orjson.dumps("RPG").decode(),
+                "topic": "adventure",
+                "content": "Hello!",
+                "puppet_display_name": "Gandalf",
+                "puppet_color": "#FF5733",
+            },
+        )
+        self.assert_json_success(result)
+
+    def test_puppet_color_normalization(self) -> None:
+        """3-digit hex colors should be normalized to 6-digit."""
+        user = self.example_user("hamlet")
+        self.login_user(user)
+        stream = self.subscribe(user, "RPG")
+        stream.enable_puppet_mode = True
+        stream.save()
+
+        # Send message with 3-digit hex color
+        result = self.client_post(
+            "/json/messages",
+            {
+                "type": "stream",
+                "to": orjson.dumps("RPG").decode(),
+                "topic": "adventure",
+                "content": "Hello!",
+                "puppet_display_name": "Gandalf",
+                "puppet_color": "#F00",
+            },
+        )
+        self.assert_json_success(result)
+
+        # Verify color was normalized
+        puppet = StreamPuppet.objects.get(stream=stream, name="Gandalf")
+        self.assertEqual(puppet.color, "#FF0000")
+
+    def test_puppet_display_name_max_length(self) -> None:
+        """Puppet display name cannot exceed 100 characters."""
+        user = self.example_user("hamlet")
+        self.login_user(user)
+        stream = self.subscribe(user, "RPG")
+        stream.enable_puppet_mode = True
+        stream.save()
+
+        # Name too long should be rejected
+        result = self.client_post(
+            "/json/messages",
+            {
+                "type": "stream",
+                "to": orjson.dumps("RPG").decode(),
+                "topic": "adventure",
+                "content": "Hello!",
+                "puppet_display_name": "A" * 101,
+            },
+        )
+        self.assert_json_error_contains(result, "puppet_display_name")
+
+
+class PuppetHandlerFilteringTest(ZulipTestCase):
+    """Tests for filtering deactivated users from puppet handlers."""
+
+    def test_deactivated_user_excluded_from_handlers(self) -> None:
+        """Deactivated users should not appear in handler listings."""
+        from zerver.actions.stream_puppets import get_puppet_handler_user_ids
+        from zerver.actions.users import do_deactivate_user
+
+        user = self.example_user("hamlet")
+        other_user = self.example_user("cordelia")
+        stream = self.subscribe(user, "RPG")
+        stream.enable_puppet_mode = True
+        stream.save()
+
+        # Create a puppet and add handlers
+        puppet = StreamPuppet.objects.create(
+            stream=stream,
+            name="Gandalf",
+            created_by=user,
+        )
+        PuppetHandler.objects.create(
+            puppet=puppet,
+            handler=user,
+            handler_type=PuppetHandler.HANDLER_TYPE_CLAIMED,
+        )
+        PuppetHandler.objects.create(
+            puppet=puppet,
+            handler=other_user,
+            handler_type=PuppetHandler.HANDLER_TYPE_CLAIMED,
+        )
+
+        # Both users should be returned initially
+        handler_ids = get_puppet_handler_user_ids([puppet.id], stream)
+        self.assertIn(user.id, handler_ids)
+        self.assertIn(other_user.id, handler_ids)
+
+        # Deactivate one user
+        do_deactivate_user(other_user, acting_user=None)
+
+        # Now only the active user should be returned
+        handler_ids = get_puppet_handler_user_ids([puppet.id], stream)
+        self.assertIn(user.id, handler_ids)
+        self.assertNotIn(other_user.id, handler_ids)

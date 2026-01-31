@@ -24326,6 +24326,11 @@ paths:
                               type: string
                               description: |
                                 User group name.
+                            color:
+                              type: string
+                              description: |
+                                The hex color code for the user group, used for visual identification.
+                                Format is `#RRGGBB`.
                             is_system_group:
                               type: boolean
                               description: |
@@ -26134,6 +26139,11 @@ components:
           type: string
           description: |
             The description of the user group.
+        color:
+          type: string
+          description: |
+            The hex color code for the user group, used for visual identification.
+            Format is `#RRGGBB`.
         members:
           type: array
           items:

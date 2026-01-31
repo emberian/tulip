@@ -11,6 +11,8 @@ let eventQueueId: string | null = null;
 let lastEventId = -1;
 let isPolling = false;
 let abortController: AbortController | null = null;
+let retryCount = 0;
+const MAX_RETRY_DELAY_MS = 60000; // 1 minute max
 
 // Get CSRF token from cookie
 function getCsrfToken(): string {
@@ -26,11 +28,13 @@ export function initializeEventHandler(queueId: string, initialEventId: number):
 
 export function cleanupEventHandler(): void {
     isPolling = false;
+    retryCount = 0;
     if (abortController) {
         abortController.abort();
         abortController = null;
     }
     // Clean up event queue on the server
+    // Use keepalive to ensure request completes even during page unload
     if (eventQueueId) {
         fetch("/json/events", {
             method: "DELETE",
@@ -40,9 +44,11 @@ export function cleanupEventHandler(): void {
             },
             body: `queue_id=${encodeURIComponent(eventQueueId)}`,
             credentials: "same-origin",
+            keepalive: true,
         }).catch(() => {
             // Ignore errors during cleanup
         });
+        eventQueueId = null;
     }
 }
 
@@ -78,8 +84,18 @@ async function poll(): Promise<void> {
                 window.location.reload();
                 return;
             }
+            if (response.status === 401 || response.status === 403) {
+                // Authentication expired - redirect to login
+                console.error("Session expired, redirecting to login...");
+                isPolling = false;
+                window.location.href = "/login/";
+                return;
+            }
             throw new Error(`Event poll failed: ${response.status}`);
         }
+
+        // Success - reset retry count
+        retryCount = 0;
 
         const data = (await response.json()) as {events?: Array<Record<string, unknown>>};
 
@@ -100,9 +116,12 @@ async function poll(): Promise<void> {
             return;
         }
         console.error("Event poll error:", error);
-        // Retry after delay
+        // Retry with exponential backoff
         if (isPolling) {
-            setTimeout(poll, 5000);
+            const delay = Math.min(5000 * Math.pow(2, retryCount), MAX_RETRY_DELAY_MS);
+            retryCount++;
+            console.log(`Retrying in ${delay}ms (attempt ${retryCount})`);
+            setTimeout(poll, delay);
         }
     }
 }

@@ -6,7 +6,7 @@ from django.core import validators
 from django.core.exceptions import ValidationError
 from django.http import HttpRequest, HttpResponse
 from django.utils.translation import gettext as _
-from pydantic import Json
+from pydantic import Json, StringConstraints
 
 from zerver.actions.message_send import (
     check_send_message,
@@ -125,9 +125,18 @@ def send_message_backend(
     widget_content: Annotated[
         str | None, ApiParamConfig("widget_content", documentation_status=DOCUMENTATION_PENDING)
     ] = None,
-    puppet_display_name: str | None = None,
-    puppet_avatar_url: str | None = None,
-    puppet_color: str | None = None,
+    puppet_display_name: Annotated[
+        str | None,
+        StringConstraints(max_length=100),
+    ] = None,
+    puppet_avatar_url: Annotated[
+        str | None,
+        StringConstraints(max_length=500, pattern=r"^(|https://[^\s]+)$"),
+    ] = None,
+    puppet_color: Annotated[
+        str | None,
+        StringConstraints(pattern=r"^(|#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}))$"),
+    ] = None,
     persona_id: Json[int] | None = None,
     whisper_to_user_ids: Json[list[int]] | None = None,
     whisper_to_group_ids: Json[list[int]] | None = None,

@@ -172,3 +172,156 @@ class BotCommandsTestCase(ZulipTestCase):
 
         result = self.api_delete(user, "/api/v1/bot_commands/99999")
         self.assert_json_error(result, "Command not found")
+
+    def test_register_command_prevents_takeover(self) -> None:
+        """Another bot cannot overwrite an existing command from a different bot."""
+        user = self.example_user("hamlet")
+        bot1 = self.create_test_bot(
+            "weatherbot", user, full_name="Weather Bot", bot_type=UserProfile.OUTGOING_WEBHOOK_BOT
+        )
+        bot2 = self.create_test_bot(
+            "gamebot", user, full_name="Game Bot", bot_type=UserProfile.OUTGOING_WEBHOOK_BOT
+        )
+
+        # Bot1 registers the command
+        result = self.api_post(
+            bot1,
+            "/api/v1/bot_commands",
+            {
+                "name": "weather",
+                "description": "Get weather info",
+            },
+        )
+        self.assert_json_success(result)
+
+        # Bot2 tries to register the same command name - should fail
+        result = self.api_post(
+            bot2,
+            "/api/v1/bot_commands",
+            {
+                "name": "weather",
+                "description": "My weather command",
+            },
+        )
+        self.assert_json_error(result, "Command '/weather' is already registered by another bot")
+
+        # Verify bot1 still owns the command
+        command = BotCommand.objects.get(realm=user.realm, name="weather")
+        self.assertEqual(command.bot_profile, bot1)
+        self.assertEqual(command.description, "Get weather info")
+
+    def test_register_command_name_validation(self) -> None:
+        """Command names must follow the required format."""
+        user = self.example_user("hamlet")
+        bot = self.create_test_bot("test", user, bot_type=UserProfile.OUTGOING_WEBHOOK_BOT)
+
+        # Invalid: starts with number
+        result = self.api_post(
+            bot,
+            "/api/v1/bot_commands",
+            {"name": "1weather", "description": "Test"},
+        )
+        self.assert_json_error_contains(result, "Invalid command name")
+
+        # Invalid: contains spaces
+        result = self.api_post(
+            bot,
+            "/api/v1/bot_commands",
+            {"name": "my weather", "description": "Test"},
+        )
+        self.assert_json_error_contains(result, "Invalid command name")
+
+        # Invalid: uppercase
+        result = self.api_post(
+            bot,
+            "/api/v1/bot_commands",
+            {"name": "Weather", "description": "Test"},
+        )
+        self.assert_json_error_contains(result, "Invalid command name")
+
+        # Invalid: too long (over 32 chars)
+        result = self.api_post(
+            bot,
+            "/api/v1/bot_commands",
+            {"name": "a" * 33, "description": "Test"},
+        )
+        self.assert_json_error_contains(result, "Invalid command name")
+
+        # Valid: lowercase with hyphens and underscores
+        result = self.api_post(
+            bot,
+            "/api/v1/bot_commands",
+            {"name": "my-weather_cmd", "description": "Test"},
+        )
+        self.assert_json_success(result)
+
+    def test_register_command_options_schema_validation(self) -> None:
+        """Options schema must have valid structure."""
+        user = self.example_user("hamlet")
+        bot = self.create_test_bot("test", user, bot_type=UserProfile.OUTGOING_WEBHOOK_BOT)
+
+        # Invalid: option missing name
+        result = self.api_post(
+            bot,
+            "/api/v1/bot_commands",
+            {
+                "name": "weather",
+                "description": "Test",
+                "options": orjson.dumps([{"type": "string"}]).decode(),
+            },
+        )
+        self.assert_json_error_contains(result, "must have a 'name' string")
+
+        # Invalid: option missing type
+        result = self.api_post(
+            bot,
+            "/api/v1/bot_commands",
+            {
+                "name": "weather2",
+                "description": "Test",
+                "options": orjson.dumps([{"name": "location"}]).decode(),
+            },
+        )
+        self.assert_json_error_contains(result, "must have a valid 'type'")
+
+        # Invalid: invalid option type
+        result = self.api_post(
+            bot,
+            "/api/v1/bot_commands",
+            {
+                "name": "weather3",
+                "description": "Test",
+                "options": orjson.dumps([{"name": "location", "type": "invalid"}]).decode(),
+            },
+        )
+        self.assert_json_error_contains(result, "must have a valid 'type'")
+
+        # Invalid: duplicate option name
+        result = self.api_post(
+            bot,
+            "/api/v1/bot_commands",
+            {
+                "name": "weather4",
+                "description": "Test",
+                "options": orjson.dumps([
+                    {"name": "location", "type": "string"},
+                    {"name": "location", "type": "integer"},
+                ]).decode(),
+            },
+        )
+        self.assert_json_error_contains(result, "Duplicate option name")
+
+        # Valid schema
+        result = self.api_post(
+            bot,
+            "/api/v1/bot_commands",
+            {
+                "name": "weather5",
+                "description": "Test",
+                "options": orjson.dumps([
+                    {"name": "location", "type": "string", "description": "City name"},
+                    {"name": "units", "type": "string", "choices": ["celsius", "fahrenheit"]},
+                ]).decode(),
+            },
+        )
+        self.assert_json_success(result)

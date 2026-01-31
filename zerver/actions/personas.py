@@ -32,14 +32,16 @@ def do_create_persona(
     bio: str = "",
 ) -> UserPersona:
     """Create a new persona for a user."""
-    # Check persona limit
-    current_count = UserPersona.objects.filter(user=user_profile, is_active=True).count()
-    if current_count >= UserPersona.MAX_PERSONAS_PER_USER:
-        raise JsonableError(
-            _("You have reached the maximum number of personas ({limit}).").format(
-                limit=UserPersona.MAX_PERSONAS_PER_USER
+    # Check persona limit (0 = unlimited)
+    max_personas = user_profile.realm.max_personas_per_user
+    if max_personas > 0:
+        current_count = UserPersona.objects.filter(user=user_profile, is_active=True).count()
+        if current_count >= max_personas:
+            raise JsonableError(
+                _("You have reached the maximum number of personas ({limit}).").format(
+                    limit=max_personas
+                )
             )
-        )
 
     # Check for duplicate name
     if UserPersona.objects.filter(user=user_profile, name=name).exists():

@@ -51,6 +51,9 @@ def get_presence_dicts_for_rows(
         )
         if is_bot:
             info["is_bot"] = True
+            # Preserve None for active_timestamp when bot is disconnected
+            if presence_row["last_active_time"] is None:
+                info["active_timestamp"] = None
         user_statuses[user_key] = info
 
     return user_statuses

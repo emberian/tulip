@@ -6,6 +6,15 @@ from zerver.models import Stream, UserProfile
 from zerver.models.streams import PuppetHandler, StreamPuppet
 
 
+def _normalize_hex_color(color: str | None) -> str | None:
+    """Normalize 3-digit hex colors to 6-digit format."""
+    if color is None:
+        return None
+    if len(color) == 4:  # #RGB
+        return f"#{color[1]}{color[1]}{color[2]}{color[2]}{color[3]}{color[3]}"
+    return color
+
+
 def register_stream_puppet(
     stream: Stream,
     puppet_name: str,
@@ -19,12 +28,15 @@ def register_stream_puppet(
     @-mentions and conversation participants. Also registers the sender
     as a handler for this puppet (for receiving whispers).
     """
+    # Normalize color to 6-digit hex format
+    normalized_color = _normalize_hex_color(puppet_color)
+
     puppet, created = StreamPuppet.objects.update_or_create(
         stream=stream,
         name=puppet_name,
         defaults={
             "avatar_url": puppet_avatar_url,
-            "color": puppet_color,
+            "color": normalized_color,
             "last_used": timezone_now(),
             "created_by": sender,
         },
@@ -36,8 +48,8 @@ def register_stream_puppet(
         if puppet_avatar_url:
             puppet.avatar_url = puppet_avatar_url
             update_fields.append("avatar_url")
-        if puppet_color is not None:
-            puppet.color = puppet_color
+        if normalized_color is not None:
+            puppet.color = normalized_color
             update_fields.append("color")
         puppet.save(update_fields=update_fields)
 
@@ -87,16 +99,18 @@ def get_puppet_handler_user_ids(puppet_ids: list[int], stream: Stream) -> set[in
 
     for puppet in puppets:
         if puppet.visibility_mode == StreamPuppet.VISIBILITY_CLAIMED:
-            # Only include explicitly claimed handlers
+            # Only include explicitly claimed handlers (and active users)
             handler_ids = puppet.handlers.filter(
-                handler_type=PuppetHandler.HANDLER_TYPE_CLAIMED
+                handler_type=PuppetHandler.HANDLER_TYPE_CLAIMED,
+                handler__is_active=True,
             ).values_list("handler_id", flat=True)
             user_ids.update(handler_ids)
         else:
-            # Open mode: include all handlers used within the time window
+            # Open mode: include all handlers used within the time window (and active users)
             cutoff = now - timedelta(hours=puppet.recent_handler_window_hours)
             handler_ids = puppet.handlers.filter(
-                last_used__gte=cutoff
+                last_used__gte=cutoff,
+                handler__is_active=True,
             ).values_list("handler_id", flat=True)
             user_ids.update(handler_ids)
 

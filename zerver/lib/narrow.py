@@ -1027,6 +1027,7 @@ def get_whisper_visibility_condition(
     user_id: int | None,
     user_group_ids: list[int],
     handled_puppet_ids: list[int] | None = None,
+    owned_persona_ids: list[int] | None = None,
 ) -> ClauseElement:
     """
     Returns a SQLAlchemy condition that filters messages to only include:
@@ -1034,6 +1035,7 @@ def get_whisper_visibility_condition(
     - Whispers where the user is in user_ids
     - Whispers where the user is a member of a group in group_ids
     - Whispers where the user handles a puppet in puppet_ids
+    - Whispers where the user owns a persona in persona_ids
 
     For anonymous users (user_id is None), only non-whisper messages are visible.
     """
@@ -1048,7 +1050,8 @@ def get_whisper_visibility_condition(
     # 2. User is the sender, OR
     # 3. User is directly in whisper_recipients.user_ids, OR
     # 4. User is a member of a group in whisper_recipients.group_ids, OR
-    # 5. User handles a puppet in whisper_recipients.puppet_ids
+    # 5. User handles a puppet in whisper_recipients.puppet_ids, OR
+    # 6. User owns a persona in whisper_recipients.persona_ids
 
     conditions: list[ClauseElement] = [
         # Not a whisper - visible to all
@@ -1085,6 +1088,17 @@ def get_whisper_visibility_condition(
             )
         )
 
+    # Add persona ownership check if user owns any personas
+    if owned_persona_ids:
+        # Check if any of user's owned personas are in whisper_recipients.persona_ids
+        persona_ids_str = ",".join(f"'{p}'" for p in owned_persona_ids)
+        conditions.append(
+            literal_column(
+                f"(zerver_message.whisper_recipients->'persona_ids' ?| ARRAY[{persona_ids_str}])",
+                Boolean,
+            )
+        )
+
     return or_(*conditions)
 
 
@@ -1097,6 +1111,7 @@ def get_base_query_for_search(
         user_id: int | None = None
         user_recursive_group_ids: list[int] = []
         handled_puppet_ids: list[int] = []
+        owned_persona_ids: list[int] = []
         if user_profile is not None:
             user_id = user_profile.id
             if not user_profile.is_guest:
@@ -1108,6 +1123,15 @@ def get_base_query_for_search(
 
             handled_puppet_ids = get_all_user_handled_puppet_ids(user_profile)
 
+            # Get personas the user owns for whisper visibility
+            from zerver.models.personas import UserPersona
+
+            owned_persona_ids = list(
+                UserPersona.objects.filter(
+                    user=user_profile, is_active=True
+                ).values_list("id", flat=True)
+            )
+
         query = (
             select(column("id", Integer).label("message_id"))
             .select_from(table("zerver_message"))
@@ -1115,7 +1139,10 @@ def get_base_query_for_search(
             # Filter whispers based on user visibility
             .where(
                 get_whisper_visibility_condition(
-                    user_id, user_recursive_group_ids, handled_puppet_ids or None
+                    user_id,
+                    user_recursive_group_ids,
+                    handled_puppet_ids or None,
+                    owned_persona_ids or None,
                 )
             )
         )
@@ -1136,6 +1163,15 @@ def get_base_query_for_search(
     from zerver.actions.stream_puppets import get_all_user_handled_puppet_ids
 
     handled_puppet_ids = get_all_user_handled_puppet_ids(user_profile)
+
+    # Get personas the user owns for whisper visibility
+    from zerver.models.personas import UserPersona
+
+    owned_persona_ids = list(
+        UserPersona.objects.filter(
+            user=user_profile, is_active=True
+        ).values_list("id", flat=True)
+    )
 
     query = (
         select(column("message_id", Integer))
@@ -1203,7 +1239,10 @@ def get_base_query_for_search(
         # Filter whispers - user must be able to see the whisper
         .where(
             get_whisper_visibility_condition(
-                user_profile.id, user_recursive_group_ids, handled_puppet_ids or None
+                user_profile.id,
+                user_recursive_group_ids,
+                handled_puppet_ids or None,
+                owned_persona_ids or None,
             )
         )
     )

@@ -10,9 +10,9 @@
     let {selectedPersonaId, onSelect}: Props = $props();
 
     let isOpen = $state(false);
-    let dropdownRef: HTMLElement;
-    let listboxRef: HTMLElement;
-    let toggleRef: HTMLElement;
+    let dropdownRef = $state<HTMLElement | undefined>(undefined);
+    let listboxRef = $state<HTMLElement | undefined>(undefined);
+    let toggleRef = $state<HTMLElement | undefined>(undefined);
     let focusedIndex = $state(-1);
 
     let userPersonas = $derived($personas);

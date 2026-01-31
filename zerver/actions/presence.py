@@ -67,9 +67,12 @@ def send_presence_changed(
     legacy_presence_dict = format_legacy_presence_dict(last_active_time, last_connected_time)
     modern_presence_dict = get_modern_user_presence_info(last_active_time, last_connected_time)
 
-    # Add is_bot flag for bots so frontend can differentiate
+    # For bots, preserve the None value for active_timestamp when disconnected.
+    # The default fallback to date_joined breaks bot presence detection.
     if user_profile.is_bot:
         modern_presence_dict["is_bot"] = True
+        if presence.last_active_time is None:
+            modern_presence_dict["active_timestamp"] = None
 
     event = dict(
         type="presence",

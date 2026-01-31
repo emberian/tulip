@@ -73,7 +73,7 @@ from zerver.models import (
     UserGroupMembership,
     UserProfile,
 )
-from zerver.models.bots import get_bot_services
+from zerver.models.bots import BotCommand, get_bot_services
 from zerver.models.messages import UserMessage
 from zerver.models.realm_audit_logs import AuditLogEventType
 from zerver.models.realms import get_fake_email_domain
@@ -516,6 +516,22 @@ def do_deactivate_user(
         send_events_for_user_deactivation(user_profile)
 
         if user_profile.is_bot:
+            # Clean up any slash commands registered by this bot
+            bot_commands = BotCommand.objects.filter(bot_profile=user_profile)
+            command_ids = list(bot_commands.values_list("id", flat=True))
+            bot_commands.delete()
+
+            # Notify clients to remove the commands from their UI
+            for command_id in command_ids:
+                event_remove_command = dict(
+                    type="bot_command",
+                    op="remove",
+                    command_id=command_id,
+                )
+                send_event_on_commit(
+                    user_profile.realm, event_remove_command, active_user_ids(user_profile.realm_id)
+                )
+
             event_deactivate_bot = dict(
                 type="realm_bot",
                 op="update",

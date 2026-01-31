@@ -1,5 +1,6 @@
 import json
 import logging
+import re
 import uuid
 from typing import Annotated, Any
 
@@ -26,6 +27,58 @@ from zerver.models.users import active_user_ids, get_user_profile_by_id
 from zerver.tornado.django_api import send_event_on_commit
 
 logger = logging.getLogger(__name__)
+
+VALID_OPTION_TYPES = {"string", "integer", "boolean", "user", "channel"}
+MAX_OPTIONS_PER_COMMAND = 25
+MAX_CHOICES_PER_OPTION = 25
+
+
+def _validate_options_schema(options: list[dict[str, object]]) -> None:
+    """Validate the structure of a command options schema."""
+    if len(options) > MAX_OPTIONS_PER_COMMAND:
+        raise JsonableError(
+            _("Too many options. Maximum {max} allowed.").format(max=MAX_OPTIONS_PER_COMMAND)
+        )
+
+    seen_names = set()
+    for i, option in enumerate(options):
+        if not isinstance(option, dict):
+            raise JsonableError(_("Option {index} must be an object.").format(index=i + 1))
+
+        # Required field: name
+        name = option.get("name")
+        if not name or not isinstance(name, str):
+            raise JsonableError(_("Option {index} must have a 'name' string.").format(index=i + 1))
+
+        if not re.match(r"^[a-z][a-z0-9_]{0,31}$", name):
+            raise JsonableError(
+                _("Option name '{name}' is invalid. Must be lowercase alphanumeric with underscores.").format(name=name)
+            )
+
+        if name in seen_names:
+            raise JsonableError(_("Duplicate option name: '{name}'").format(name=name))
+        seen_names.add(name)
+
+        # Required field: type
+        opt_type = option.get("type")
+        if not opt_type or opt_type not in VALID_OPTION_TYPES:
+            raise JsonableError(
+                _("Option '{name}' must have a valid 'type' (one of: {types}).").format(
+                    name=name, types=", ".join(sorted(VALID_OPTION_TYPES))
+                )
+            )
+
+        # Optional: choices (if present, validate structure)
+        choices = option.get("choices")
+        if choices is not None:
+            if not isinstance(choices, list):
+                raise JsonableError(_("Option '{name}' choices must be a list.").format(name=name))
+            if len(choices) > MAX_CHOICES_PER_OPTION:
+                raise JsonableError(
+                    _("Option '{name}' has too many choices. Maximum {max} allowed.").format(
+                        name=name, max=MAX_CHOICES_PER_OPTION
+                    )
+                )
 
 
 @require_organization_member
@@ -63,16 +116,36 @@ def register_bot_command(
     if not user_profile.is_bot:
         raise JsonableError(_("Only bots can register commands"))
 
+    # Validate command name format: alphanumeric, hyphens, underscores only
+    if not re.match(r"^[a-z][a-z0-9_-]{0,31}$", name):
+        raise JsonableError(
+            _("Invalid command name. Must be 1-32 lowercase letters, numbers, hyphens, or underscores, starting with a letter.")
+        )
+
+    # Validate options schema structure
+    _validate_options_schema(options)
+
+    # Check if command already exists and is owned by a different bot
+    existing = BotCommand.objects.filter(realm=user_profile.realm, name=name).first()
+    if existing and existing.bot_profile_id != user_profile.id:
+        raise JsonableError(_("Command '/{name}' is already registered by another bot").format(name=name))
+
     # Create or update the command
-    command, created = BotCommand.objects.update_or_create(
-        realm=user_profile.realm,
-        name=name,
-        defaults={
-            "bot_profile": user_profile,
-            "description": description,
-            "options_schema": options,
-        },
-    )
+    if existing:
+        existing.description = description
+        existing.options_schema = options
+        existing.save()
+        command = existing
+        created = False
+    else:
+        command = BotCommand.objects.create(
+            realm=user_profile.realm,
+            name=name,
+            bot_profile=user_profile,
+            description=description,
+            options_schema=options,
+        )
+        created = True
 
     # Send event to notify clients about new/updated command
     event = {
@@ -344,10 +417,9 @@ def invoke_bot_command(
     # Check idempotency key to prevent duplicate submissions
     if idempotency_key:
         cache_key = f"cmd_idempotency:{user_profile.id}:{idempotency_key}"
-        if cache.get(cache_key):
+        # Use add() for atomic check-and-set to avoid race condition
+        if not cache.add(cache_key, "pending", timeout=300):
             raise JsonableError(_("Command already submitted"))
-        # Set the key with 5 minute TTL - will be confirmed after successful send
-        cache.set(cache_key, "pending", timeout=300)
 
     # Look up the command
     try:

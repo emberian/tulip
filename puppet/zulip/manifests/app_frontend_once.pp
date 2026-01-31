@@ -73,6 +73,11 @@ class zulip::app_frontend_once {
     hour   => '22',
     minute => '22',
   }
+  zulip::cron { 'cleanup-stale-puppet-handlers':
+    hour   => '3',
+    minute => '0',
+    manage => 'cleanup_stale_puppet_handlers -f',
+  }
 
   # Weekly
   zulip::cron { 'update-channel-recently-active-status':

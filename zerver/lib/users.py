@@ -94,10 +94,11 @@ def check_full_name(
 
 
 def check_color(color: str | None) -> str | None:
-    """Validate color format (hex: #RGB or #RRGGBB).
+    """Validate and normalize color format (hex: #RGB or #RRGGBB).
 
-    Returns the color if valid, raises JsonableError if invalid.
+    Returns the normalized 6-digit color if valid, raises JsonableError if invalid.
     None or empty string is valid (means no personal color set / clear color).
+    3-digit colors (#RGB) are normalized to 6-digit (#RRGGBB).
     """
     if color is None or color == "":
         return None
@@ -108,6 +109,10 @@ def check_color(color: str | None) -> str | None:
     # Check hex format: #RGB or #RRGGBB
     if not re.match(r"^#[0-9A-Fa-f]{3}$|^#[0-9A-Fa-f]{6}$", color):
         raise JsonableError(_("Invalid color format! Use hex format like #RGB or #RRGGBB."))
+
+    # Normalize 3-digit hex to 6-digit
+    if len(color) == 4:  # #RGB
+        color = f"#{color[1]}{color[1]}{color[2]}{color[2]}{color[3]}{color[3]}"
 
     return color
 
