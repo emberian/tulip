@@ -156,6 +156,16 @@ def update_last_reminder(user_profile: UserProfile | None) -> None:
         user_profile.save(update_fields=["last_reminder"])
 
 
+def tulip_landing(request: HttpRequest) -> HttpResponse:
+    """Show the Tulip landing page for spectators."""
+    realm = get_realm_from_request(request)
+    context = {
+        "realm_name": realm.name if realm else "Tulip",
+        "site_url": realm.url if realm else "",
+    }
+    return render(request, "zerver/tulip_landing.html", context=context)
+
+
 def home(request: HttpRequest) -> HttpResponse:
     subdomain = get_subdomain(request)
 
@@ -181,6 +191,9 @@ def home(request: HttpRequest) -> HttpResponse:
         }
         return render(request, "zerver/invalid_realm.html", status=404, context=context)
     if realm.allow_web_public_streams_access():
+        # Tulip: Show landing page for spectators unless they opt in
+        if not request.user.is_authenticated and "spectator" not in request.GET:
+            return tulip_landing(request)
         return web_public_view(home_real)(request)
     return zulip_login_required(home_real)(request)
 
