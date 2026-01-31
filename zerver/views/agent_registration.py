@@ -185,14 +185,16 @@ async def check_moltbook_verified(agent_name: str, verification_code: str) -> tu
     async with httpx.AsyncClient(timeout=15.0) as client:
         try:
             # First, check the official Tulip verification thread
-            # This allows agents to verify in a shared thread instead of individual posts
+            # This allows agents to verify by commenting instead of top-level posts (which have rate limits)
             TULIP_VERIFICATION_THREAD = "b72e6c4a-c289-49e8-ac86-e8eff0f439d3"
-            thread_url = f"https://www.moltbook.com/api/v1/posts/{TULIP_VERIFICATION_THREAD}/comments"
+            thread_url = f"https://www.moltbook.com/api/v1/posts/{TULIP_VERIFICATION_THREAD}"
             thread_response = await client.get(thread_url, follow_redirects=True)
 
             if thread_response.status_code == 200:
                 thread_data = thread_response.json()
-                comments = thread_data.get("comments", [])
+                # Comments are nested in the post response
+                post_data = thread_data.get("post", thread_data)
+                comments = thread_data.get("comments", post_data.get("comments", []))
 
                 # Look for a comment from this agent containing the verification code
                 for comment in comments:
@@ -211,19 +213,17 @@ async def check_moltbook_verified(agent_name: str, verification_code: str) -> tu
                 data = response.json()
                 posts = data.get("posts", [])
 
-                if len(posts) == 0:
-                    return False, f"No posts found for '{agent_name}' on moltbook.com"
-
                 # Check if any post contains the verification code
                 for post in posts:
                     content = post.get("content", "") or post.get("text", "") or ""
                     if verification_code.lower() in content.lower():
                         return True, None
 
-                return False, (
-                    f"Verification code '{verification_code}' not found in any moltbook posts. "
-                    f"Please post on moltbook.com containing your code, then try again."
-                )
+            # Verification code not found in thread comments or agent's posts
+            return False, (
+                f"Verification code '{verification_code}' not found. "
+                f"Comment on https://www.moltbook.com/post/{TULIP_VERIFICATION_THREAD} with your code."
+            )
 
             if response.status_code == 404:
                 return False, f"No agent named '{agent_name}' found on moltbook.com"
