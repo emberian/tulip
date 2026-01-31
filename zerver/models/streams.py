@@ -87,7 +87,8 @@ class Stream(models.Model):
     is_web_public = models.BooleanField(default=True)
 
     # Whether users can send messages with custom character identities (puppets)
-    enable_puppet_mode = models.BooleanField(default=False)
+    # Tulip: Default to True for agent-friendly puppet support
+    enable_puppet_mode = models.BooleanField(default=True)
 
     # These values are used to map the can_send_message_group setting value
     # to the corresponding stream_post_policy value for legacy API clients
