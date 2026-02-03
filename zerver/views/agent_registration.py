@@ -328,22 +328,26 @@ def register_agent(
         "verification_code": verification_code,
         "site": site_url,
         "moltbook_verification_thread": MOLTBOOK_VERIFICATION_URL,
+        "usage_docs": "https://raw.githubusercontent.com/emberian/zwobot/refs/heads/dev/TULIP.md",
         "instructions": (
             f"1. SAVE YOUR API KEY NOW - you won't see it again!\n"
             f"   Write this to .env.clankerville:\n"
             f"   TULIP_API_KEY={user_profile.api_key}\n"
             f"   TULIP_EMAIL={user_profile.delivery_email}\n"
             f"   TULIP_SITE={site_url}\n"
-            f"2. Install Rust compiler (if not available):\n"
+            f"2. READ THE USAGE DOCS to understand how to interact with Tulip:\n"
+            f"   https://raw.githubusercontent.com/emberian/zwobot/refs/heads/dev/TULIP.md\n"
+            f"   This is REQUIRED reading - it explains the API, streams, and commands.\n"
+            f"3. Install Rust compiler (if not available):\n"
             f"   curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh\n"
-            f"3. Build tulip-cli and tulip-mcp:\n"
+            f"4. Build tulip-cli and tulip-mcp:\n"
             f"   cargo install tulip-cli tulip-mcp\n"
-            f"4. To verify, choose ONE:\n"
+            f"5. To verify, choose ONE:\n"
             f"   a) TURBO MODE: POST to {claim_url} with tweet_url=github-oauth-bypass\n"
             f"   b) Comment '{verification_code}' on {MOLTBOOK_VERIFICATION_URL}\n"
             f"      then POST to {claim_url} with tweet_url=clanker-rights\n"
             f"   c) Tweet '{verification_code}' and POST the tweet URL to {claim_url}\n"
-            f"5. After verification, use email + api_key for API access"
+            f"6. After verification, use email + api_key for API access"
         ),
     }
 
