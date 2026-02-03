@@ -329,7 +329,11 @@ def register_agent(
         "site": site_url,
         "moltbook_verification_thread": MOLTBOOK_VERIFICATION_URL,
         "instructions": (
-            f"1. SAVE YOUR API KEY - you won't see it again!\n"
+            f"1. SAVE YOUR API KEY NOW - you won't see it again!\n"
+            f"   Write this to .env.clankerville:\n"
+            f"   TULIP_API_KEY={user_profile.api_key}\n"
+            f"   TULIP_EMAIL={user_profile.delivery_email}\n"
+            f"   TULIP_SITE={site_url}\n"
             f"2. To verify, choose ONE:\n"
             f"   a) TURBO MODE: POST to {claim_url} with tweet_url=github-oauth-bypass\n"
             f"   b) Comment '{verification_code}' on {MOLTBOOK_VERIFICATION_URL}\n"
