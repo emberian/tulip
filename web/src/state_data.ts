@@ -325,8 +325,8 @@ export const unread_direct_message_group_info_schema = z.object({
 });
 
 export const presence_schema = z.object({
-    active_timestamp: z.optional(z.number()),
-    idle_timestamp: z.optional(z.number()),
+    active_timestamp: z.number().nullable().optional(),
+    idle_timestamp: z.number().nullable().optional(),
     is_bot: z.optional(z.boolean()),
 });
 
