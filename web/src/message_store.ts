@@ -384,7 +384,9 @@ export function update_booleans(message: Message, flags: string[]): void {
 export function update_sender_full_name(user_id: number, new_name: string): void {
     for (const message_data of stored_messages.values()) {
         const message = message_data.message;
-        if (message.sender_id && message.sender_id === user_id) {
+        // Don't override sender_full_name for persona or puppet messages - those
+        // should keep their persona/puppet name even if the real sender changes their name
+        if (message.sender_id && message.sender_id === user_id && !message.persona_display_name && !message.puppet_display_name) {
             message.sender_full_name = new_name;
         }
     }
